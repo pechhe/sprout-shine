@@ -10,6 +10,8 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import { isPatternTag } from './lesson/vocab';
 import { parentSkillView, type SkillLevel } from './lesson/skillState';
 import type { PatternSignalTag } from './lesson/vocab';
+import { makeParentPatternObservation, channelForReaction } from './lesson/feedback';
+import type { ParentFeedbackRecord } from './lesson/feedback';
 import {
   blendSkillState,
   decaySince,
@@ -116,6 +118,24 @@ export async function refreshPatterns(
       timestamp: ev.at
     });
   }
+
+  // #12 — model-channel parent feedback is a sibling interpretation source
+  // (ADR-0004 #1): fold each doesnt_sound_right / sounds_right on a pattern as
+  // a low-weight source:'parent' observation, in timestamp order with the rest.
+  const feedback = await ctx.db
+    .query('parentFeedback')
+    .withIndex('by_child', (q) => q.eq('childId', childId))
+    .collect();
+  for (const fb of feedback) {
+    if (channelForReaction(fb.reaction as ParentFeedbackRecord['reaction']) !== 'model') continue;
+    const t = fb.target as { kind?: string; section?: string; targetRef?: string };
+    if (t.kind !== 'evidence' || t.section !== 'patterns') continue;
+    if (!t.targetRef || !isPatternTag(t.targetRef)) continue;
+    observations.push(makeParentPatternObservation(fb.reaction as 'sounds_right' | "doesn't_sound_right", t.targetRef, fb.at));
+  }
+  // Deterministic order: fold in timestamp order so a recompute reproduces the
+  // incremental write path regardless of source mixing.
+  observations.sort((a, b) => a.timestamp - b.timestamp);
 
   // Group by tag and fold into one signal each.
   const byTag = new Map<PatternSignalTag, PatternObservation[]>();

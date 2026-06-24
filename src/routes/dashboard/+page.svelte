@@ -156,14 +156,25 @@
       </Card>
     {/if}
 
-    <!-- Weekly digest placeholder -->
+    <!-- #11 — weekly Digest. The latest visible digest for this week, or a link
+         to generate one. Built from an evidence-pack + guardrail; never a transcript. -->
     <Card class="mt-5">
-      <h2 class="font-display text-lg font-semibold text-ink">This week's learning insight</h2>
+      <div class="flex items-center justify-between gap-3">
+        <h2 class="font-display text-lg font-semibold text-ink">This week's learning insight</h2>
+        {#if dash?.consent?.settings?.weeklyDigest}
+          <span class="text-xs font-semibold text-mint">Ready</span>
+          <Button variant="ghost" onclick={() => goto('/dashboard/digest')}>View digest →</Button>
+        {/if}
+      </div>
       <div class="mt-3 rounded-xl border border-dashed border-cream-line bg-paper p-6 text-center text-muted">
         <div class="text-2xl">🌱</div>
         <p class="mt-2 text-sm">
-          Your first weekly digest appears after a few sessions — what improved, what was tricky, and
-          one shine moment. Built from evidence, never a transcript dump.
+          {#if dash?.consent?.settings?.weeklyDigest}
+            What improved, what was tricky, a shine moment, and one thing to try at home — built from evidence,
+            never a transcript dump.
+          {:else}
+            Weekly learning insights are off in your privacy settings. Turn them on to see how {child?.nickname ?? 'your child'} is getting on.
+          {/if}
         </p>
       </div>
     </Card>

@@ -191,6 +191,23 @@ export default defineSchema({
     .index('by_child', ['childId'])
     .index('by_child_week', ['childId', 'weekKey']),
 
+  // #12 — Parent Feedback. A low-weight interpretation signal layered
+  // alongside sessionEvents into the Learner Model (ADR-0004). Stored in its
+  // own table because feedback carries no session/task context. Two channels:
+  // 'model' (truth-claims, feeds the reducer) and 'presentation' (surfacing
+  // prefs, read by Digest layer 1). The digests row from #11 is untouched.
+  parentFeedback: defineTable({
+    childId: v.id('children'),
+    digestId: v.id('digests'),
+    channel: v.string(), // "model" | "presentation"
+    reaction: v.string(), // sounds_right | doesn't_sound_right | useful | not_useful | want_less | want_more
+    target: v.any(), // {kind:'digest'} | {kind:'section', section} | {kind:'evidence', section, targetRef}
+    at: v.number()
+  })
+    .index('by_child', ['childId'])
+    .index('by_child_digest', ['childId', 'digestId'])
+    .index('by_target', ['childId', 'channel']),
+
   // #3 — guardian consent + privacy settings. One row per child.
   consents: defineTable({
     childId: v.id('children'),

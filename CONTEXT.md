@@ -151,3 +151,11 @@ of a pattern has faded *and* fresh evidence still triggers it. The model keeps
 the truthful pattern behind the scenes; the Digest never silently re-labels a
 child without fresh consent. Ignored prompts default back to suppressed.
 _Avoid_: re-surfacing notice, expiry alert
+
+**Strand Anchor**:
+One hand-authored Lesson Plan per maths strand — the highest-quality, always-
+validated, always-runnable plan for that strand. Not sample content and not
+retired when on-the-fly generation matures: it is the permanent fail-safe floor
+the lesson engine falls back to when a generated plan can't be validated, and
+the known-good introduction a child gets on their first lesson in a strand.
+_Avoid_: seed lesson, template lesson, starter plan

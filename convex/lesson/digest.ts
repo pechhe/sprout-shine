@@ -18,6 +18,13 @@ import type { MisconceptionTag, PatternSignalTag } from './vocab';
 import type { SkillLevel } from './skillState';
 import { levelFromScore } from './skillState';
 import type { SessionEventLike } from './learnerModel';
+export type { SessionEventLike } from './learnerModel';
+import {
+  patternSurfacingDecision,
+  sectionTuning,
+  type ParentFeedbackRecord,
+  type FeedbackSection
+} from './feedback';
 
 const DAY_MS = 86_400_000;
 
@@ -121,6 +128,8 @@ export type DigestTemplates = {
   trickyTemplate: string;
 };
 
+export type ReconsentPrompt = { tag: PatternSignalTag };
+
 export type EvidencePack = {
   weekKey: string;
   childId: string;
@@ -138,6 +147,15 @@ export type EvidencePack = {
     tricky: TrickySkill[];
   };
   templates: DigestTemplates;
+  /** #12 — patterns suppressed this week by parent want_less (kept off the
+   *  surface; the truthful signal lives on in patternSignals, ADR-0004 #6). */
+  suppressedPatterns: PatternSignalTag[];
+  /** #12 — one-time re-consent prompts: a suppression has decayed and fresh
+   *  evidence still triggers the pattern. Surfaced once; ignored → back off. */
+  reconsentPrompts: ReconsentPrompt[];
+  /** #12 — surviving presentation preferences (want_less / want_more) per
+   *  section, to trim / expand that section's draft. */
+  sectionTuning: { section: FeedbackSection; direction: 'expand' | 'trim'; weight: number }[];
 };
 
 // --- humble parent-facing phrases for Pattern Signals (mirror learnerModel.ts;
@@ -167,19 +185,45 @@ export type BuildEvidenceInput = {
   events: SessionEventLike[];
   priorLevels: Record<string, PriorLevel> | null;
   templates: DigestTemplates;
+  /** #12 — parent feedback for the child (both channels). Optional + defaulting
+   *  to empty so #11 callers (and existing tests) are unaffected. */
+  feedback?: ParentFeedbackRecord[];
 };
 
 /** Layer 1: build a deterministic, week-scoped Evidence Pack. Pure. */
 export function buildEvidencePack(input: BuildEvidenceInput): EvidencePack {
   const [startMs, endMs] = input.window;
   const inWindow = (t: number) => t >= startMs && t < endMs;
+  const feedback = input.feedback ?? [];
 
   const improved = computeImproved(input.skills, input.priorLevels);
   const tricky = computeTricky(input.events, inWindow, input.skills);
-  const patterns = computePatterns(input.patterns);
+  const basePatterns = computePatterns(input.patterns);
   const shineCandidates = rankShineCandidates(input.events, inWindow);
+
+  // #12 — presentation-channel pattern suppression + re-consent. Layer 1 reads
+  // the child's want_less / want_more for each pattern; a suppressed pattern is
+  // kept off the surface while the truthful signal stays in patternSignals.
+  const suppressed: PatternSignalTag[] = [];
+  const reconsent: ReconsentPrompt[] = [];
+  const surfaced: PatternEvidence[] = [];
+  for (const p of basePatterns) {
+    const decision = patternSurfacingDecision(
+      { tag: p.tag, level: p.level, score: p.score, confidence: p.confidence },
+      feedback,
+      input.generatedAt
+    );
+    if (decision.surface) {
+      surfaced.push(p);
+    } else {
+      suppressed.push(p.tag);
+      if (decision.reason === 'pendingReconsent') reconsent.push({ tag: p.tag });
+    }
+  }
+
+  const tuning = sectionTuning(feedback, input.generatedAt);
   const homeInput = {
-    patterns: patterns.filter((p) => p.level === 'present'),
+    patterns: surfaced.filter((p) => p.level === 'present'),
     tricky
   };
 
@@ -192,10 +236,13 @@ export function buildEvidencePack(input: BuildEvidenceInput): EvidencePack {
     levels: input.skills.map((s) => ({ skillTag: s.skillTag, level: s.level, levelScore: s.levelScore })),
     improved,
     tricky,
-    patterns,
+    patterns: surfaced,
     shineCandidates,
     homeInput,
-    templates: input.templates
+    templates: input.templates,
+    suppressedPatterns: suppressed,
+    reconsentPrompts: reconsent,
+    sectionTuning: tuning
   };
 }
 

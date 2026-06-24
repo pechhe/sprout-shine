@@ -27,6 +27,7 @@ import {
   type SkillLevelSnapshot,
   type SessionEventLike
 } from './lesson/digest';
+import type { ParentFeedbackRecord } from './lesson/feedback';
 import type { PatternSignalTag } from './lesson/vocab';
 
 declare const process: { env: Record<string, string | undefined> };
@@ -55,6 +56,16 @@ export type DigestView = {
   chosenCandidateId: string | null;
   shineFallbackUsed: boolean;
   generatedAt: number;
+  /** #12 — re-consent prompts carried in this digest's evidence pack. */
+  reconsentPrompts: { tag: string }[];
+  /** #12 — earlier feedback pinned to this digest (for the parent UI). */
+  feedback: {
+    _id: Id<'parentFeedback'>;
+    channel: string;
+    reaction: string;
+    target: unknown;
+    at: number;
+  }[];
 };
 
 export const visibleForChild = query({
@@ -68,6 +79,12 @@ export const visibleForChild = query({
       .first();
     if (!row) return null;
     const g = row.guardrailedDraft;
+    const pack = row.evidencePack as EvidencePack | null;
+    const feedbackRows = await ctx.db
+      .query('parentFeedback')
+      .withIndex('by_child_digest', (q) => q.eq('childId', childId).eq('digestId', row._id))
+      .order('desc')
+      .collect();
     return {
       _id: row._id,
       _creationTime: row._creationTime,
@@ -82,7 +99,15 @@ export const visibleForChild = query({
       footer: g?.footer ?? '',
       chosenCandidateId: row.chosenCandidateId ?? null,
       shineFallbackUsed: g?.shineFallbackUsed ?? false,
-      generatedAt: row.updatedAt
+      generatedAt: row.updatedAt,
+      reconsentPrompts: pack?.reconsentPrompts ?? [],
+      feedback: feedbackRows.map((f) => ({
+        _id: f._id,
+        channel: f.channel,
+        reaction: f.reaction,
+        target: f.target,
+        at: f.at
+      }))
     };
   }
 });
@@ -187,6 +212,21 @@ async function buildPack(
 
   const templates = await loadTemplates(ctx, skillSnapshots.map((s) => s.skillTag));
 
+  // #12 — load parent feedback (both channels) so layer 1 can suppress patterns,
+  // surface re-consent prompts, and trim/expand sections (ADR-0004).
+  const feedbackRows = await ctx.db
+    .query('parentFeedback')
+    .withIndex('by_child', (q) => q.eq('childId', childId))
+    .collect();
+  const feedback = feedbackRows.map((f) => ({
+    childId,
+    digestId: f.digestId,
+    channel: f.channel as 'model' | 'presentation',
+    reaction: f.reaction as ParentFeedbackRecord['reaction'],
+    target: f.target as ParentFeedbackRecord['target'],
+    at: f.at
+  }));
+
   return buildEvidencePack({
     childId,
     childNickname: child.nickname,
@@ -197,7 +237,8 @@ async function buildPack(
     patterns: patternRows,
     events,
     priorLevels,
-    templates
+    templates,
+    feedback
   });
 }
 
@@ -229,6 +270,11 @@ function buildInstructions(evidence: EvidencePack): string {
     '- shine.chosenCandidateId MUST be one of the candidate ids in the pack, or null ONLY if there are no candidates.',
     '- If there are zero shine candidates, set chosenCandidateId to null and write a gentle line about a settling-in week — never invent a moment.',
     '- Keep each section to 1-2 sentences. Warm, concrete, specific to this child.',
+    '',
+    '#12 — Parent feedback (honour it; never re-label without consent):',
+    '- `suppressedPatterns` are patterns the parent asked to see less of — do NOT mention them in any section.',
+    '- `reconsentPrompts` lists a pattern the parent once suppressed but the system is still seeing. If present, the "patterns" section should ask ONE gentle, one-time question: "We are still seeing that {child} may {phrase} — would you like to see this in future digests?" Keep it warm and tentative; do not restate the pattern as fact.',
+    '- `sectionTuning` says a parent wants more (expand) or less (trim) of a section. expand → a touch more detail; trim → one short sentence. Never drop a section entirely.',
     '',
     'EVIDENCE PACK (JSON):',
     JSON.stringify(evidence),
@@ -363,7 +409,7 @@ export const generateForWeek = action({
       evidencePack: evidence,
       draft,
       guardrailedDraft: guardrailed,
-      chosenCandidateId: guardrailed.chosenCandidateId,
+      chosenCandidateId: guardrailed.chosenCandidateId ?? undefined,
       generatedBy: DIGEST_MODEL
     });
 
@@ -384,7 +430,7 @@ export const generateForAllChildren = action({
     let skipped = 0;
     for (const childId of childIds) {
       try {
-        const r = await generateForWeek(ctx, { childId });
+        const r = await ctx.runAction(api.digests.generateForWeek, { childId });
         if (r.ok && !r.skipped) generated++;
         else skipped++;
       } catch {

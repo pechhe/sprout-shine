@@ -235,15 +235,25 @@ export function decaySince(confidence: number, lastSeen: number, now: number): n
 
 // --- Pattern Signals: hypotheses about *how* a child learns ---
 
-export type PatternSource = 'deterministic' | 'model';
+export type PatternSource = 'deterministic' | 'model' | 'parent';
 // A model guess can never harden into a trait: its confidence ceiling is low.
+// 'parent' (#12, ADR-0004) sits lowest: a parent signal is a humble single read,
+// never a hardened trait.
 const PATTERN_CONFIDENCE_CEILING: Record<PatternSource, number> = {
   model: 0.3,
-  deterministic: 0.7
+  deterministic: 0.7,
+  parent: 0.2
 };
 // Pattern score EMA — a touch faster than skill confidence (patterns are soft),
 // but still damped so a single observation doesn't assert a trait.
 const PATTERN_ALPHA = 0.3;
+// #12 — source-scaled parent pinch (ADR-0004 #4). A model-channel disagreement
+// is strong against a `model`-proposed claim (neutralizes a weak guess) and
+// gentle against a `deterministic` one (barely dents observed data, so fresh
+// evidence can re-raise it). Realised by scaling the blend alpha against the
+// resolved target source. Non-parent observations keep PATTERN_ALPHA unchanged.
+const PARENT_PINCH_ALPHA_STRONG = 0.5; // vs model/parent-sourced claims
+const PARENT_PINCH_ALPHA_GENTLE = 0.08; // vs deterministic-sourced claims
 
 export type PatternObservation = {
   tag: PatternSignalTag;
@@ -272,12 +282,26 @@ export type PatternSignalResult = {
   updatedAt: number;
 };
 
+// Source rank: deterministic > model > parent. A parent pinch never rebrands a
+// stronger signal as 'parent' — it only dents it; the signal keeps its source.
+const SOURCE_RANK: Record<PatternSource, number> = { deterministic: 2, model: 1, parent: 0 };
 function strongerSource(
   prior: PatternSignalInput | undefined,
   obs: PatternSource
 ): PatternSource {
-  if (prior?.source === 'deterministic' || obs === 'deterministic') return 'deterministic';
-  return 'model';
+ const candidates: PatternSource[] = [];
+ if (prior?.source) candidates.push(prior.source);
+ candidates.push(obs);
+ return candidates.reduce((best, s) => (SOURCE_RANK[s] > SOURCE_RANK[best] ? s : best));
+}
+
+/** #12 — the blend alpha scaled to the observation's target. A parent pinch is
+ *  strong against a model/parent-sourced claim, gentle against data-derived
+ *  (deterministic) evidence. All other observations use the constant alpha. */
+function patternBlendAlpha(prior: PatternSignalInput | null, obs: PatternObservation): number {
+ if (obs.source !== 'parent') return PATTERN_ALPHA;
+ const target = strongerSource(prior ?? undefined, obs.source);
+ return target === 'deterministic' ? PARENT_PINCH_ALPHA_GENTLE : PARENT_PINCH_ALPHA_STRONG;
 }
 
 /**
@@ -292,6 +316,8 @@ export function updatePatternSignal(
   const target = obs.supports ? 1 : 0;
   const source = strongerSource(prior ?? undefined, obs.source);
   const ceiling = PATTERN_CONFIDENCE_CEILING[source];
+  // #12 — source-scaled blend weight (parent pinches scale by the target source).
+  const alpha = patternBlendAlpha(prior, obs);
 
   if (!prior) {
     // One observation damps from the neutral 0.5 toward the target — it never
@@ -311,8 +337,8 @@ export function updatePatternSignal(
     };
   }
 
-  const score = prior.score + PATTERN_ALPHA * (target - prior.score);
-  let confidence = prior.confidence * (1 - PATTERN_ALPHA) + obs.confidence * PATTERN_ALPHA;
+  const score = prior.score + alpha * (target - prior.score);
+  let confidence = prior.confidence * (1 - alpha) + obs.confidence * alpha;
   confidence = Math.min(confidence, ceiling);
 
   return {
