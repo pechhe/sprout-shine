@@ -78,12 +78,36 @@ export default defineSchema({
     updatedAt: v.number()
   }).index('by_child', ['childId']),
 
-  // #5 — a lesson session container (voice-first shell).
+  // #7 — generated, schema-validated Lesson Plans. Reused across sessions via a
+  // draft -> approved -> live gate (human review = #13). Sessions only run
+  // approved plans. The plan JSON conforms to convex/lesson/plan.ts LessonPlan.
+  lessonPlans: defineTable({
+    lessonId: v.string(),
+    skillTag: v.string(),
+    title: v.string(),
+    status: v.string(), // "draft" | "approved" | "live"
+    plan: v.any(),
+    generatedBy: v.string(), // model id
+    createdAt: v.number(),
+    approvedAt: v.optional(v.number())
+  })
+    .index('by_lessonId', ['lessonId'])
+    .index('by_status', ['status'])
+    .index('by_skill_status', ['skillTag', 'status']),
+
+  // #5/#7 — a lesson session container (Realtime-driven).
   sessions: defineTable({
     childId: v.id('children'),
     lessonId: v.string(),
     status: v.string(), // "active" | "ended"
-    mode: v.string(), // "voice" | "text"
+    mode: v.string(), // "realtime" | "text"
+    // #7 engine state (authoritative, server-owned)
+    lessonPlanId: v.optional(v.id('lessonPlans')),
+    phase: v.optional(v.string()),
+    taskIndex: v.optional(v.number()),
+    attempts: v.optional(v.number()),
+    hintLevel: v.optional(v.number()),
+    masteryResult: v.optional(v.string()),
     startedAt: v.number(),
     endedAt: v.optional(v.number())
   })
