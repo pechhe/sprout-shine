@@ -67,3 +67,15 @@ export const dashboard = query({
     return { parent, child, interview, consent };
   }
 });
+
+// #22 — minimal child-profile read for the parent-interview token action. The
+// interviewer needs the child's nickname to ground the conversation; it does not
+// need the whole dashboard graph.
+export const childForInterview = query({
+  args: { childId: v.id('children') },
+  handler: async (ctx, { childId }) => {
+    const child = await ctx.db.get(childId);
+    if (!child) return null;
+    return { _id: child._id, nickname: child.nickname, age: child.age };
+  }
+});

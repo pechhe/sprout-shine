@@ -50,6 +50,41 @@ export const DETERMINISTIC_PATTERN_TAGS = [
 ] as const;
 export type DeterministicPatternTag = (typeof DETERMINISTIC_PATTERN_TAGS)[number];
 
+// #22 — Focus Strands: the coarse maths families a parent nominates during
+// the Parent Interview. Parent-scaled ("fractions"), while the Strand Selector
+// (#14) picks the fine-grained Skill Tag within a strand (system-scaled).
+// The five names match the families in issue #14. `strandToSkillTags` is the
+// shared artefact both this issue's validator and #14's selector consume.
+export const SKILL_STRANDS = [
+  'number_sense',
+  'multiplication_division',
+  'fractions',
+  'word_problems',
+  'explaining_answer'
+] as const;
+export type SkillStrand = (typeof SKILL_STRANDS)[number];
+
+// Parent-facing label for each strand (shown on the dashboard + in the tool
+// enum description so the model uses the parent's own vocabulary).
+export const STRAND_LABELS: Record<SkillStrand, string> = {
+  number_sense: 'number sense',
+  multiplication_division: 'multiplication & division',
+  fractions: 'fractions',
+  word_problems: 'word problems',
+  explaining_answer: 'explaining an answer'
+};
+
+// Coarse strand -> the fine-grained Skill Tags within it. Every SKILL_TAG
+// belongs to exactly one strand (asserted in interview.test.ts). The selector
+// translates a parent's strand pick into its candidate skill set.
+export const strandToSkillTags: Record<SkillStrand, SkillTag[]> = {
+  number_sense: ['number_sense_basic', 'checking_work'],
+  multiplication_division: ['multiplication_as_groups', 'multiplication_as_arrays', 'division_sharing'],
+  fractions: ['fractions_equal_parts', 'fractions_number_line'],
+  word_problems: ['word_problem_translation'],
+  explaining_answer: ['explanation_quality']
+};
+
 export const ANSWER_TYPES = ['manipulative', 'numeric', 'choice', 'explanation'] as const;
 export type AnswerType = (typeof ANSWER_TYPES)[number];
 
@@ -82,6 +117,9 @@ export function isMisconceptionTag(x: string): x is MisconceptionTag {
 }
 export function isPatternTag(x: string): x is PatternSignalTag {
   return (PATTERN_TAGS as readonly string[]).includes(x);
+}
+export function isSkillStrand(x: string): x is SkillStrand {
+  return (SKILL_STRANDS as readonly string[]).includes(x);
 }
 
 // #14 — Strands: the coarse maths areas the lesson engine selects between.

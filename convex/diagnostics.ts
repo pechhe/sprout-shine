@@ -2,6 +2,7 @@ import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 import type { Id } from './_generated/dataModel';
 import type { QueryCtx } from './_generated/server';
+import { internal } from './_generated/api';
 import { gradeTask, type Attempt, type VerdictStatus } from './lesson/grade';
 import { decideAttemptNudge, decideHelpNudge, isEmptyAttempt } from './lesson/nudge';
 import { DIAGNOSTIC_ITEMS } from './lesson/diagnosticTasks';
@@ -214,6 +215,10 @@ export const recordAttempt = mutation({
       });
       // #10 — refresh pattern signals from the full diagnostic event log.
       await refreshPatterns(ctx, session.childId);
+      // #14 — first-ever lesson hook: pre-warm the next plan from the
+      // diagnostic's skill estimates. The diagnostic-end is the trigger when
+      // there is no prior lesson to pre-warm from.
+      await ctx.scheduler.runAfter(0, internal.prewarm.prewarm, { childId: session.childId });
       return { ok: true, done: true, closing: closing.message, views: closing.views, skillEstimate: estimate };
     }
     await ctx.db.patch(sessionId, { diagnosticTaskIndex: nextI, attempts: 0, hintLevel: 0, taskResolved: false });

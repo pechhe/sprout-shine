@@ -1,5 +1,6 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
+import { internal } from './_generated/api';
 
 // #5 — start a lesson session and record the session_start event.
 export const start = mutation({
@@ -61,6 +62,11 @@ export const recordDigestOpen = mutation({
 });
 
 // #5 — end a session and record the session_end event.
+// #14 — pre-warm the next lesson plan in the background (no await): at
+// session-end the Learner Model is freshest (#10 reducer just consumed the
+// session's outcomes), so the Strand Selector's ranked output is most accurate
+// here. The next session-start reads the queued, validated plan and starts
+// instantly — no synchronous generation on the eager path.
 export const end = mutation({
   args: { sessionId: v.id('sessions') },
   handler: async (ctx, { sessionId }) => {
@@ -74,6 +80,11 @@ export const end = mutation({
       meta: { durationMs: Date.now() - session.startedAt },
       at: Date.now()
     });
+    // Diagnostic sessions (lessonId 'diagnostic') pre-warm from their own end
+    // path in diagnostics.ts; lesson sessions pre-warm here.
+    if (session.lessonId !== 'diagnostic') {
+      await ctx.scheduler.runAfter(0, internal.prewarm.prewarm, { childId: session.childId });
+    }
   }
 });
 

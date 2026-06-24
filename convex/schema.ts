@@ -67,9 +67,14 @@ export default defineSchema({
     createdAt: v.number()
   }).index('by_parent', ['parentId']),
 
-  // #2 — parent interview answers (kept separate; updatable over time).
+  // #2/#22 — parent interview answers. The five free-text fields are retained
+  // from the placeholder form; #22 repurposes them as the structured outputs the
+  // AI-conducted interview elicits. focusStrand is the load-bearing override the
+  // Strand Selector (#14) reads (nullable = "the selector decides"). One row per
+  // child, upserted on re-interview.
   interviews: defineTable({
     childId: v.id('children'),
+    focusStrand: v.optional(v.string()), // #22 — SkillStrand | null
     findsEasy: v.string(),
     avoids: v.string(),
     whenStuck: v.string(),
