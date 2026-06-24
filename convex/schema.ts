@@ -109,6 +109,8 @@ export default defineSchema({
     hintLevel: v.optional(v.number()),
     taskResolved: v.optional(v.boolean()),
     masteryResult: v.optional(v.string()),
+    // #9 — diagnostic session progress (mirrors taskIndex for the diagnostic item set)
+    diagnosticTaskIndex: v.optional(v.number()),
     startedAt: v.number(),
     endedAt: v.optional(v.number())
   })
@@ -129,6 +131,24 @@ export default defineSchema({
   })
     .index('by_session', ['sessionId'])
     .index('by_child', ['childId']),
+
+  // #9/#10 — the learner model. Initial skill-state is created by the diagnostic;
+  // later lessons (#10) add evidence over time. Confidence stays modest so weak
+  // signals are never overtreated as facts (see skillState.ts).
+  skillStates: defineTable({
+    childId: v.id('children'),
+    skillTag: v.string(),
+    level: v.string(), // "emerging" | "developing" | "secure"
+    levelScore: v.number(), // 0..1 (internal — never shown as a 'score' to parents)
+    confidence: v.number(), // 0..1 (low for single diagnostic signals)
+    evidenceCount: v.number(),
+    lastSeen: v.number(),
+    misconceptions: v.optional(v.any()), // MisconceptionTag[]
+    source: v.string(), // "diagnostic" | "lesson"
+    updatedAt: v.number()
+  })
+    .index('by_child', ['childId'])
+    .index('by_child_skill', ['childId', 'skillTag']),
 
   // #3 — guardian consent + privacy settings. One row per child.
   consents: defineTable({

@@ -102,3 +102,57 @@ export const token = action({
     return { value: data.value ?? data.client_secret?.value, model: REALTIME_MODEL };
   }
 });
+
+// #9 — realtime token for the diagnostic session (lighter tool set; client
+// drives item progression, the model narrates + may give hints).
+const DIAGNOSTIC_TOOLS = [
+  TOOLS.find((t) => t.name === 'request_hint')!,
+  TOOLS.find((t) => t.name === 'tag_misconception')!
+];
+
+function buildDiagnosticInstructions(state: any): string {
+  return [
+    'You are a warm, patient maths tutor for a child aged 7-10, speaking out loud.',
+    'This is a short first session to get to know how the child thinks across a few maths areas. It is NOT a test — keep it light and encouraging.',
+    'RULES YOU MUST FOLLOW:',
+    '- One question at a time. Keep turns short and friendly.',
+    '- You do NOT decide if an answer is correct. The app checks each answer and tells you the verdict.',
+    '- Never reveal answers. If the child is stuck, call request_hint and say it warmly.',
+    '- When the app says a skill is done, move on to the next prompt it gives you.',
+    '- Stay encouraging. Do not use labels like clever, gifted, lazy, or bad focus. Praise specific effort and thinking, not intelligence.',
+    '- If the child goes off-topic or shares something personal/sensitive, gently redirect to the maths and do not engage.',
+    state.item ? `Current prompt to work through with the child: "${state.item.prompt}"` : 'The diagnostic is finishing — give warm, specific positive feedback.'
+  ].filter(Boolean).join('\n');
+}
+
+export const diagnosticToken = action({
+  args: { sessionId: v.id('sessions') },
+  handler: async (ctx, { sessionId }): Promise<{ value: string; model: string }> => {
+    const key = process.env.OPENAI_API_KEY;
+    if (!key) throw new Error('OPENAI_API_KEY not set');
+    const state = await ctx.runQuery(api.diagnostics.state, { sessionId });
+    const res = await fetch('https://api.openai.com/v1/realtime/client_secrets', {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${key}`,
+        'content-type': 'application/json',
+        'OpenAI-Safety-Identifier': `sprout-child-${state.sessionId}`
+      },
+      body: JSON.stringify({
+        session: {
+          type: 'realtime',
+          model: REALTIME_MODEL,
+          instructions: buildDiagnosticInstructions(state),
+          tools: DIAGNOSTIC_TOOLS,
+          audio: {
+            input: { transcription: { model: 'whisper-1' } },
+            output: { voice: VOICE }
+          }
+        }
+      })
+    });
+    if (!res.ok) throw new Error(`Realtime token ${res.status}: ${await res.text()}`);
+    const data = await res.json();
+    return { value: data.value ?? data.client_secret?.value, model: REALTIME_MODEL };
+  }
+});
