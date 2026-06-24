@@ -4,10 +4,11 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { QueryCtx, MutationCtx } from './_generated/server';
 import { currentTask, nextPosition, phaseContent, type Position } from './lesson/machine';
 import { gradeTask, type Attempt } from './lesson/grade';
-import { RULES, isMisconceptionTag, isPatternTag, type Phase } from './lesson/vocab';
+import { RULES, isMisconceptionTag, isPatternTag, isStrand, type Phase, type Strand } from './lesson/vocab';
 import type { LessonPlan, Task } from './lesson/plan';
 import { decideAttemptNudge, decideHelpNudge, isEmptyAttempt } from './lesson/nudge';
 import { applyOutcome, refreshPatterns } from './learnerModel';
+import { ANCHOR_LESSON_IDS } from './lesson/anchorPlans';
 
 // Strip a task down to what the client/model may see (no correct_state leaks of
 // other tasks; the current task keeps its target so the Workspace can render).
@@ -88,6 +89,65 @@ export const start = mutation({
       childId,
       type: 'session_start',
       meta: { lessonId: plan.lessonId, skillTag, mode },
+      at: Date.now()
+    });
+    const session = (await ctx.db.get(sessionId))!;
+    return snapshot(session, plan);
+  }
+});
+
+// #14 — start a lesson against the pre-warmed, validated plan. Session-start
+// resolves the queued plan (rank 1) with NO synchronous generation: pre-warm ran
+// at the prior session-end, so this is an instant read. If no queued plan exists
+// yet (first lesson before pre-warm completes, or a redirection to an
+// uncached strand), fall back to the rank-1 strand's Strand Anchor — the child
+// always starts instantly into a known-good, validated plan.
+export const startQueued = mutation({
+  args: { childId: v.id('children'), mode: v.optional(v.string()) },
+  handler: async (ctx, { childId, mode = 'realtime' }) => {
+    const queued = await ctx.db
+      .query('queuedPlans')
+      .withIndex('by_child', (q) => q.eq('childId', childId))
+      .collect();
+    const top = queued.sort((a, b) => a.rank - b.rank)[0];
+
+    let planDoc: Doc<'lessonPlans'> | null = null;
+    if (top) {
+      planDoc = (await ctx.db.get(top.planId)) ?? null;
+    }
+    // Fallback: the rank-1 strand's anchor (or the multiplication anchor if no
+    // queue at all). Anchors are seeded approved — guaranteed valid, no validation
+    // on the eager path.
+    if (!planDoc) {
+      const strand: Strand = top ? (isStrand(top.strand) ? top.strand : 'multiplication_division') : 'multiplication_division';
+      const anchorLessonId = ANCHOR_LESSON_IDS[strand];
+      planDoc = (await ctx.db
+        .query('lessonPlans')
+        .withIndex('by_lessonId', (q) => q.eq('lessonId', anchorLessonId))
+        .first()) ?? null;
+    }
+    if (!planDoc || planDoc.status !== 'approved') {
+      throw new Error('no validated plan available (run prewarm.seedAnchors)');
+    }
+    const plan = planDoc.plan as LessonPlan;
+    const sessionId = await ctx.db.insert('sessions', {
+      childId,
+      lessonId: plan.lessonId,
+      lessonPlanId: planDoc._id,
+      status: 'active',
+      mode,
+      phase: 'warm_up',
+      taskIndex: 0,
+      attempts: 0,
+      hintLevel: 0,
+      taskResolved: false,
+      startedAt: Date.now()
+    });
+    await ctx.db.insert('sessionEvents', {
+      sessionId,
+      childId,
+      type: 'session_start',
+      meta: { lessonId: plan.lessonId, skillTag: plan.skillTag, mode, source: top ? 'queued' : 'anchor' },
       at: Date.now()
     });
     const session = (await ctx.db.get(sessionId))!;

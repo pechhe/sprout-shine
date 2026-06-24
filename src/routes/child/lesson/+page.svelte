@@ -9,7 +9,7 @@
   import { checkGuardrails } from '$lib/guardrails';
   import { recordEvent } from '$lib/remote/sessions.remote';
   import {
-    startLesson,
+    startQueuedLesson,
     realtimeToken,
     requestHint,
     recordAttempt,
@@ -18,8 +18,6 @@
     endLesson
   } from '$lib/remote/lesson.remote';
   import { Volume2, VolumeX, Lightbulb } from '@lucide/svelte';
-
-  const SKILL = 'multiplication_as_arrays';
 
   let childId = $state<string | null>(null);
   let sessionId = $state<string | null>(null);
@@ -78,7 +76,10 @@
     }
     connecting = true;
     try {
-      const res = await startLesson({ childId, skillTag: SKILL });
+      // #14 — start against the pre-warmed, validated plan (or strand anchor
+      // fallback). No synchronous generation; the plan was pre-warmed at the
+      // prior session-end / diagnostic-end.
+      const res = await startQueuedLesson({ childId });
       sessionId = res.sessionId;
       lesson = res;
       started = true;

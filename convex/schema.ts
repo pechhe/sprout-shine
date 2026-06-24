@@ -67,9 +67,14 @@ export default defineSchema({
     createdAt: v.number()
   }).index('by_parent', ['parentId']),
 
-  // #2 — parent interview answers (kept separate; updatable over time).
+  // #2/#22 — parent interview answers. The five free-text fields are retained
+  // from the placeholder form; #22 repurposes them as the structured outputs the
+  // AI-conducted interview elicits. focusStrand is the load-bearing override the
+  // Strand Selector (#14) reads (nullable = "the selector decides"). One row per
+  // child, upserted on re-interview.
   interviews: defineTable({
     childId: v.id('children'),
+    focusStrand: v.optional(v.string()), // #22 — SkillStrand | null
     findsEasy: v.string(),
     avoids: v.string(),
     whenStuck: v.string(),
@@ -225,5 +230,23 @@ export default defineSchema({
       productImprovement: v.boolean() // opt-in only — OFF by default
     }),
     deletionRequestedAt: v.optional(v.number())
-  }).index('by_child', ['childId'])
+  }).index('by_child', ['childId']),
+
+  // #14 — the pre-warm cache. One row per child per strand holding the next
+  // lesson plan (generated+approved, or the Strand Anchor fallback). Pre-warmed
+  // at session-end when the Learner Model is freshest; read at session-start so
+  // the child starts instantly with no synchronous generation. Pruned each
+  // pre-warm to the new top strands (a mastered skill's queued plan is dropped).
+  queuedPlans: defineTable({
+    childId: v.id('children'),
+    strand: v.string(), // Strand (controlled vocab in lesson/vocab.ts)
+    skillTag: v.string(),
+    planId: v.id('lessonPlans'),
+    source: v.string(), // "generated" | "anchor"
+    rank: v.number(),
+    createdAt: v.number(),
+    generatedAt: v.number()
+  })
+    .index('by_child', ['childId'])
+    .index('by_child_strand', ['childId', 'strand'])
 });
