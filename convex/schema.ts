@@ -170,6 +170,27 @@ export default defineSchema({
     .index('by_child', ['childId'])
     .index('by_child_tag', ['childId', 'tag']),
 
+  // #11 — the weekly Digest. One row per child per calendar week. The
+  // "fat" row embeds the Evidence Pack JSON (mirrors lessonPlans.plan) so
+  // review (#13) and corrections (#12) can trace every line to evidence.
+  // status is the seam #13's review console + gate inherit: for the concierge
+  // pilot new digests are 'visible' (generate-and-show); #13 flips the default
+  // to 'draft' behind its toggle with no schema retrofit.
+  digests: defineTable({
+    childId: v.id('children'),
+    weekKey: v.string(), // ISO-8601 "YYYY-WNN"
+    status: v.string(), // "visible" | "draft" | "rejected"
+    evidencePack: v.any(), // frozen EvidencePack (Layer 1)
+    draft: v.any(), // raw LLM draft (Layer 2)
+    guardrailedDraft: v.any(), // GuardrailedDigest (Layer 3)
+    chosenCandidateId: v.optional(v.string()),
+    generatedBy: v.string(), // model id
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index('by_child', ['childId'])
+    .index('by_child_week', ['childId', 'weekKey']),
+
   // #3 — guardian consent + privacy settings. One row per child.
   consents: defineTable({
     childId: v.id('children'),

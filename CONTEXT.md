@@ -120,3 +120,34 @@ ranked list of candidates surfaced by the evidence-pack, and traceable back to
 its source event. When there are no candidates, the Digest uses a gentle fallback
 rather than fabricating one.
 _Avoid_: highlight, win, achievement
+
+**Parent Feedback**:
+A parent's recorded interpretation of a Digest — or a specific part of it —
+separate from the structured Evidence Pack and never overwriting it. Pinned to
+the part it concerns (the whole Digest, a section, or a piece of evidence such as
+a Shine Moment or Skill State), so the signal says *what* the parent agreed with,
+disagreed with, or wanted more or less of.
+_Avoid_: rating, review, parent comment
+
+**Interpretation Signal**:
+A structured record of someone's read on a learner-model claim — a Session
+Event from a lesson, or a piece of Parent Feedback. All interpretation signals
+are humble inputs to the Learner Model; none overwrites the others. The Learner
+Model stays recomputable from the full set.
+_Avoid_: correction entry, feedback datum
+
+**Feedback Channel**:
+Which kind of thing a Parent Feedback record is. A *model* channel feedback is a
+truth-claim about accuracy (this pattern is / isn't my child) and feeds the
+Learner Model's reducer at a low, source-scaled weight. A *presentation* channel
+feedback is a preference about what the Digest surfaces (useful / not useful /
+less / more) and never touches model confidence — it only shapes future Evidence
+Packs. The split keeps a preference from corrupting the model.
+_Avoid_: feedback type, reaction class
+
+**Re-consent Prompt**:
+A gentle, one-time question the Digest asks when a parent's earlier suppression
+of a pattern has faded *and* fresh evidence still triggers it. The model keeps
+the truthful pattern behind the scenes; the Digest never silently re-labels a
+child without fresh consent. Ignored prompts default back to suppressed.
+_Avoid_: re-surfacing notice, expiry alert
