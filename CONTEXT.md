@@ -180,3 +180,26 @@ null. An override, not a directive: it sets only the Strand Selector's top
 candidate; the selector still ranks the rest and the Strand Anchor still applies.
 Distinct from the fine-grained Skill Tags the selector picks within a strand.
 _Avoid_: focus topic, parent pick, lesson choice
+
+**Strand Selector**:
+The pure, deterministic function (`selectStrand`) that ranks candidate Skill Tags
+for the next lesson, grounded in the Learner Model. Priorities, highest first:
+consolidation of a just-passed mastery, then the weakest active skill (with stuck
+skills — those with unresolved mastery across the stuck threshold — deprioritised
+below both). Emits a ranked list, not a single pick, so the pre-warm cache can
+hold the top 1–2 candidates and cover both "continue" and "switch" redirection
+paths. The Parent Interview's Focus Strand overrides only the #1 candidate; the
+ranked list and priorities stay stable. Never picks lesson content — ADR-0001:
+the validated plan is the guardrail, the selector only chooses the target.
+_Avoid_: lesson picker, recommendation engine, skill ranker
+
+**Pre-warm**:
+The background generation+validation of a child's next Lesson Plan at
+session-end (or diagnostic-end for the first lesson), when the Learner Model is
+freshest — the #10 reducer has just consumed the session's outcomes. The plan is
+queued (generated+approved, or the Strand Anchor on validation failure) and read
+at the next session-start, so the child starts instantly into a Realtime tutor
+with no synchronous generation on the eager path. The cache holds the top
+1–2 distinct-strand plans and is pruned each pre-warm to the new top strands (a
+mastered skill's queued plan is dropped).
+_Avoid_: prefetch, pre-generation, plan cache

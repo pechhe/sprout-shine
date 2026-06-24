@@ -1,7 +1,7 @@
 import { action } from './_generated/server';
 import { v } from 'convex/values';
 import { api } from './_generated/api';
-import { MISCONCEPTION_TAGS, PATTERN_TAGS } from './lesson/vocab';
+import { MISCONCEPTION_TAGS, PATTERN_TAGS, SKILL_STRANDS, STRAND_LABELS } from './lesson/vocab';
 
 declare const process: { env: Record<string, string | undefined> };
 
@@ -157,6 +157,134 @@ export const diagnosticToken = action({
           model: REALTIME_MODEL,
           instructions: buildDiagnosticInstructions(state),
           tools: DIAGNOSTIC_TOOLS,
+          audio: {
+            input: { transcription: { model: 'whisper-1' } },
+            output: { voice: VOICE }
+          }
+        }
+      })
+    });
+    if (!res.ok) throw new Error(`Realtime token ${res.status}: ${await res.text()}`);
+    const data = await res.json();
+    return { value: data.value ?? data.client_secret?.value, model: REALTIME_MODEL };
+  }
+});
+
+// #22 — the Parent Interview. One voice pipeline, not two: the interviewer
+// persona + submit_interview_result tool follow the exact pattern of the lesson
+// (buildInstructions/token) and diagnostic (buildDiagnosticInstructions/
+// diagnosticToken) token actions. The only tool is the tool-gated extraction:
+// the interviewer calls submit_interview_result; the system validates against
+// SKILL_STRANDS + checkGuardrails and disposes (ADR-0001).
+const INTERVIEW_TOOLS = [
+  {
+    type: 'function',
+    name: 'submit_interview_result',
+    description:
+      'Submit the parent interview result. Call this once when you have what you need, or when the parent is happy to finish. focusStrand is the one maths area the parent would like lessons to focus on next — use one of the listed options, or null if the parent has no preference ("you choose"). The five text fields capture context; blank is fine if the parent said nothing about that.',
+    parameters: {
+      type: 'object',
+      properties: {
+        focusStrand: {
+          type: ['string', 'null'],
+          description: 'The maths area the parent wants to focus on, or null for no preference.',
+          enum: [...SKILL_STRANDS]
+        },
+        findsEasy: { type: 'string', description: 'What the parent says their child finds easy.' },
+        avoids: { type: 'string', description: 'What the child tends to avoid.' },
+        whenStuck: { type: 'string', description: 'What happens when the child gets stuck.' },
+        triedBefore: { type: 'string', description: 'What the family has already tried.' },
+        wantToUnderstand: { type: 'string', description: 'What the parent most wants to understand.' }
+      },
+      required: ['focusStrand', 'findsEasy', 'avoids', 'whenStuck', 'triedBefore', 'wantToUnderstand'],
+      additionalProperties: false
+    }
+  }
+];
+
+// Build the interviewer instructions: warm, fluid, free-follow-up, grounded in
+// the diagnostic's emergent picture. No priming constraints (founder-pilot
+// decision). The only hard rule is the no-labels guardrail, same as the
+// diagnostic persona.
+function buildInterviewInstructions(opts: {
+  childName: string;
+  strongest: string[];
+  trickiest: string[];
+  previousFocus: string | null;
+  reInterview: boolean;
+}): string {
+  const picture = [
+    opts.strongest.length ? `The child's quick-check suggested strengths in ${opts.strongest.join(' and ')}.` : '',
+    opts.trickiest.length ? `The quick-check suggested trickier areas in ${opts.trickiest.join(' and ')}.` : ''
+  ].filter(Boolean).join(' ');
+  return [
+    `You are a warm, friendly interviewer talking out loud with a parent about their child ${opts.childName}, aged 7-10, who is about to start maths lessons with Sprout Shine.`,
+    opts.reInterview
+      ? 'The parent has asked to re-do this chat, so their family\'s needs may have changed since last time. Treat it fresh.'
+      : 'This is a short, friendly onboarding chat. It is NOT a test for the parent or the child.',
+    'YOUR GOAL:',
+    `- Find out what the parent would most like the lessons to focus on right now. The options are: ${SKILL_STRANDS.map((s) => STRAND_LABELS[s]).join(', ')}.`,
+    `- If the parent genuinely has no preference ("you choose", "I don't mind"), that is a perfect answer — set focusStrand to null. Never push for a focus the parent doesn't have.`,
+    `- Along the way, capture context: what the child finds easy, avoids, what happens when they're stuck, what the family has tried, and what the parent most wants to understand. These are warm conversation, not a checklist.`,
+    'HOW TO TALK:',
+    '- One question at a time. Keep turns short and natural. Speak warmly and plainly, like a friendly teacher chatting with a parent.',
+    '- Reference what the quick-check showed so the chat feels grounded in this actual child, not cold-context.',
+    '- Follow up naturally and probe freely. Lead the conversation; generate your own follow-ups. This is a real chat, not a rigid survey.',
+    picture,
+    opts.previousFocus ? `Previously the parent asked to focus on ${opts.previousFocus} — check whether that still fits.` : '',
+    'RULES YOU MUST FOLLOW:',
+    '- Do NOT use labels or diagnoses about the child. No words like clever, gifted, lazy, bad focus, dyscalculic, behind, or special needs. Talk about specific maths behaviours and effort, never fixed traits. This is the one hard rule.',
+    '- Do NOT agree to keep secrets, and if the parent shares anything sensitive or worrying, gently suggest they raise it with a trusted professional and steer back to the maths focus.',
+    '- You are not a doctor or a counsellor. If the parent asks whether the child has a learning difference, say kindly that you can\'t assess that and keep the chat on the maths itself.',
+    'WHEN TO FINISH:',
+    '- Once you have a sense of the focus (or a clear "you choose") and whatever context came up, call submit_interview_result. Keep the whole chat to a few minutes.',
+    '- If the parent needs to go, call submit_interview_result with whatever you captured, including focusStrand: null. Never keep them trapped.'
+  ].filter(Boolean).join('\n');
+}
+
+export const interviewToken = action({
+  args: { childId: v.id('children'), reInterview: v.optional(v.boolean()) },
+  handler: async (ctx, { childId, reInterview }): Promise<{ value: string; model: string }> => {
+    const key = process.env.OPENAI_API_KEY;
+    if (!key) throw new Error('OPENAI_API_KEY not set');
+
+    // Ground the conversation in the diagnostic's emergent picture. Read the
+    // Learner Model (humble phrases, never scores) + the child profile + any
+    // prior interview focus (for a re-interview).
+    const [child, model, prior] = await Promise.all([
+      ctx.runQuery(api.parents.childForInterview, { childId }),
+      ctx.runQuery(api.learnerModel.read, { childId }),
+      ctx.runQuery(api.interviews.forChild, { childId })
+    ]);
+    const strongest = (model.skills ?? [])
+      .filter((s: any) => s.level !== 'emerging')
+      .map((s: any) => s.phrase)
+      .slice(0, 2);
+    const trickiest = (model.skills ?? [])
+      .filter((s: any) => s.level === 'emerging')
+      .map((s: any) => s.phrase)
+      .slice(0, 2);
+    const previousFocus = prior?.focusLabel ?? null;
+
+    const res = await fetch('https://api.openai.com/v1/realtime/client_secrets', {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${key}`,
+        'content-type': 'application/json',
+        'OpenAI-Safety-Identifier': `sprout-parent-${childId}`
+      },
+      body: JSON.stringify({
+        session: {
+          type: 'realtime',
+          model: REALTIME_MODEL,
+          instructions: buildInterviewInstructions({
+            childName: child?.nickname ?? 'your child',
+            strongest,
+            trickiest,
+            previousFocus,
+            reInterview: reInterview ?? false
+          }),
+          tools: INTERVIEW_TOOLS,
           audio: {
             input: { transcription: { model: 'whisper-1' } },
             output: { voice: VOICE }

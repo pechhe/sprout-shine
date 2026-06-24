@@ -14,6 +14,24 @@ export const startLesson = command(
     })
 );
 
+// #14 — start a lesson against the pre-warmed, validated plan (or strand anchor
+// fallback). No synchronous generation on the eager path: the next plan was
+// pre-warmed at the prior session-end / diagnostic-end.
+export const startQueuedLesson = command(
+  'unchecked',
+  async (input: { childId: string; mode?: string }) =>
+    await convex.mutation(api.engine.startQueued, {
+      childId: input.childId as Id<'children'>,
+      mode: input.mode
+    })
+);
+
+// #14 — seed the five Strand Anchors as approved (deploy-time validation of the
+// fail-safe floor). Idempotent.
+export const seedAnchors = command('unchecked', async () =>
+  await convex.mutation(api.prewarm.seedAnchors, {})
+);
+
 export const lessonState = query('unchecked', async (sessionId: string) =>
   await convex.query(api.engine.state, { sessionId: sessionId as Id<'sessions'> })
 );
