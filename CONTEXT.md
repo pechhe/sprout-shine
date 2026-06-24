@@ -96,3 +96,27 @@ The normalized unit a learner-model update consumes for a Pattern Signal: a tag,
 whether the evidence supports or argues against it, a source, and a confidence.
 Several build a Pattern Signal, the way several Skill Outcomes build a Skill State.
 _Avoid_: pattern instance, behavior log
+
+**Digest**:
+A weekly parent-facing summary built only from structured evidence — what
+improved, what was tricky, how the child seems to learn best, one shine moment,
+and one thing to try at home. Never a transcript dump, never a diagnosis. Built
+from an evidence-pack (deterministic) drafted into constrained prose, then passed
+through a guardrail. Carries a status so it can be gated by review.
+_Avoid_: report, scorecard, summary email
+
+**Evidence Pack**:
+The deterministic, structured, week-scoped bundle of facts a Digest is written
+from: improved/tricky skills, learning patterns, candidate shine moments, and the
+inputs for a home suggestion. Frozen once per child per week at generation and
+persisted, so review and corrections trace every line back to evidence. Never
+includes raw audio or full transcripts.
+_Avoid_: digest payload, data blob
+
+**Shine Moment**:
+One concrete moment in a week where the child showed unusual strategy,
+persistence, creativity, explanation, or transfer. Chosen by the LLM only from a
+ranked list of candidates surfaced by the evidence-pack, and traceable back to
+its source event. When there are no candidates, the Digest uses a gentle fallback
+rather than fabricating one.
+_Avoid_: highlight, win, achievement
