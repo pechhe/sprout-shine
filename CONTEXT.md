@@ -159,3 +159,24 @@ retired when on-the-fly generation matures: it is the permanent fail-safe floor
 the lesson engine falls back to when a generated plan can't be validated, and
 the known-good introduction a child gets on their first lesson in a strand.
 _Avoid_: seed lesson, template lesson, starter plan
+
+**Parent Interview**:
+An AI-conducted onboarding conversation with a parent (the realisation of the
+issue #2 "parent interview" intent, replacing the placeholder form). Runs once
+after the diagnostic and before the first lesson's pre-warm, and again only if
+the parent asks. A fluid, free-follow-up voice conversation whose one structured
+output is a coarse Focus Strand the Strand Selector uses to override its top
+candidate (or null, meaning the selector decides). No priming rules; the only
+hard rule is the project's no-labels guardrail. Completion is participation-
+based (the parent is never trapped behind a voice conversation), so the child's
+first lesson is never blocked.
+_Avoid_: intake form, survey, parent questionnaire
+
+**Focus Strand**:
+The coarse maths area a parent nominates during the Parent Interview for the next
+phase of lessons — one of a small controlled vocabulary (number sense,
+multiplication & division, fractions, word problems, explaining an answer) or
+null. An override, not a directive: it sets only the Strand Selector's top
+candidate; the selector still ranks the rest and the Strand Anchor still applies.
+Distinct from the fine-grained Skill Tags the selector picks within a strand.
+_Avoid_: focus topic, parent pick, lesson choice
