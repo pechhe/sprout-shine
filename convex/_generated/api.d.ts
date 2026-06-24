@@ -15,6 +15,7 @@ import type * as engine from "../engine.js";
 import type * as interviews from "../interviews.js";
 import type * as lesson_grade from "../lesson/grade.js";
 import type * as lesson_machine from "../lesson/machine.js";
+import type * as lesson_nudge from "../lesson/nudge.js";
 import type * as lesson_plan from "../lesson/plan.js";
 import type * as lesson_seedPlans from "../lesson/seedPlans.js";
 import type * as lesson_vocab from "../lesson/vocab.js";
@@ -37,6 +38,7 @@ declare const fullApi: ApiFromModules<{
   interviews: typeof interviews;
   "lesson/grade": typeof lesson_grade;
   "lesson/machine": typeof lesson_machine;
+  "lesson/nudge": typeof lesson_nudge;
   "lesson/plan": typeof lesson_plan;
   "lesson/seedPlans": typeof lesson_seedPlans;
   "lesson/vocab": typeof lesson_vocab;

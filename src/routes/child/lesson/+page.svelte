@@ -95,6 +95,7 @@
     const r = await recordAttempt({ sessionId, attempt: { kind: 'array', rows } });
     lesson = { ...lesson, attempts: r.attempts, taskResolved: r.resolved };
     lastVerdict = r.verdict ?? null;
+    currentHint = ''; // verdict clears any stale hint
     const parts = [
       `The child built rows with [${rows.join(', ')}] counters.`,
       `The app checked it: verdict is "${r.verdict}".`,
@@ -103,7 +104,23 @@
       r.forcedWorkedStep
         ? 'They have used all their tries — gently walk through the worked step, then move on.'
         : '',
+      r.coachInstruction ? `Coaching: ${r.coachInstruction}` : '',
       'Respond warmly in one short turn.'
+    ].filter(Boolean);
+    realtime.pushVerdict(parts.join(' '));
+  }
+
+  // #8 — child asks for help. The engine decides whether to give a small nudge
+  // first or serve the next hint; the model follows the returned coaching move.
+  async function askForHelp() {
+    if (!sessionId) return;
+    const r = await requestHint(sessionId);
+    if (!r.ok) return;
+    if (r.hint) currentHint = r.hint;
+    const parts = [
+      'The child asked for help.',
+      r.coachInstruction ? `Coaching: ${r.coachInstruction}` : '',
+      r.hint ? `Give them this hint (say it in your own warm words): "${r.hint}"` : ''
     ].filter(Boolean);
     realtime.pushVerdict(parts.join(' '));
   }
@@ -223,14 +240,20 @@
       <div class="flex-1"></div>
 
       <!-- Controls -->
-      <div class="mt-4 flex items-center justify-between">
+      <div class="mt-4 flex flex-wrap items-center gap-2">
+        <button
+          onclick={askForHelp}
+          class="inline-flex items-center gap-1.5 rounded-full bg-gold px-3 py-2 text-sm font-bold text-gold-deep hover:bg-gold/90"
+        >
+          <Lightbulb class="size-4" /> I'm stuck
+        </button>
         <button
           onclick={() => realtime.toggleMute()}
           class="inline-flex items-center gap-1.5 rounded-full bg-white/12 px-3 py-2 text-sm font-semibold hover:bg-white/20"
         >
           {#if realtime.muted}<VolumeX class="size-4" /> Unmute{:else}<Volume2 class="size-4" /> Mute{/if}
         </button>
-        <button onclick={finish} class="text-sm font-semibold text-paper-3/70 hover:text-paper-3">
+        <button onclick={finish} class="ml-auto text-sm font-semibold text-paper-3/70 hover:text-paper-3">
           I'm done
         </button>
       </div>

@@ -6,6 +6,7 @@ import { currentTask, nextPosition, phaseContent, type Position } from './lesson
 import { gradeTask, type Attempt } from './lesson/grade';
 import { RULES, isMisconceptionTag, type Phase } from './lesson/vocab';
 import type { LessonPlan, Task } from './lesson/plan';
+import { decideAttemptNudge, decideHelpNudge, isEmptyAttempt } from './lesson/nudge';
 
 // Strip a task down to what the client/model may see (no correct_state leaks of
 // other tasks; the current task keeps its target so the Workspace can render).
@@ -109,16 +110,48 @@ export const requestHint = mutation({
     const { session, plan, pos } = await loadSessionPlan(ctx, sessionId);
     const task = currentTask(plan, pos);
     if (!task) return { ok: false, reason: 'no task in this phase' };
-    const level = Math.min((session.hintLevel ?? 0) + 1, task.hints.length);
-    await ctx.db.patch(sessionId, { hintLevel: level });
-    await ctx.db.insert('sessionEvents', {
-      sessionId,
-      childId: session.childId,
-      type: 'hint_shown',
-      meta: { taskId: task.id, level },
-      at: Date.now()
+    // #8 — adaptive nudge: a fresh help request gets a small 'are you sure?'
+    // probe before a real hint; repeated failure skips the probe and serves
+    // the worked step. The model follows the returned coachingInstruction.
+    const decision = decideHelpNudge({
+      attempts: session.attempts ?? 0,
+      maxAttempts: RULES.maxAttempts,
+      hintLevel: session.hintLevel ?? 0,
+      hintCount: task.hints.length
     });
-    return { ok: true, hint: task.hints[level - 1], level, deepest: level === task.hints.length };
+    let hint: string | null = null;
+    let level = session.hintLevel ?? 0;
+    let deepest = false;
+    if (decision.serveHintLevel) {
+      level = decision.serveHintLevel;
+      deepest = level === task.hints.length;
+      await ctx.db.patch(sessionId, { hintLevel: level });
+      hint = task.hints[level - 1] ?? null;
+      await ctx.db.insert('sessionEvents', {
+        sessionId,
+        childId: session.childId,
+        type: 'hint_shown',
+        meta: { taskId: task.id, level, deepest },
+        at: Date.now()
+      });
+    } else {
+      await ctx.db.insert('sessionEvents', {
+        sessionId,
+        childId: session.childId,
+        type: 'nudge_shown',
+        meta: { taskId: task.id, kind: decision.kind, reason: decision.reason },
+        at: Date.now()
+      });
+    }
+    return {
+      ok: true,
+      nudgeKind: decision.kind,
+      reason: decision.reason,
+      coachInstruction: decision.coachInstruction,
+      hint,
+      level,
+      deepest
+    };
   }
 });
 
@@ -133,9 +166,20 @@ export const recordAttempt = mutation({
 
     const verdict = gradeTask(task, attempt as Attempt);
     const attempts = (session.attempts ?? 0) + 1;
-    const correct = verdict.status === 'correct';
+    const correct = verdict.status === 'correct' || verdict.status === 'captured';
     const maxReached = attempts >= RULES.maxAttempts;
     const resolved = correct || maxReached;
+
+    // #8 — choose the coaching move deterministically (are_you_sure / encourage_retry /
+    // work_together / praise). Frustrated children never get 'are you sure?'.
+    const nudge = decideAttemptNudge({
+      verdict: verdict.status,
+      misconception: verdict.misconception ?? null,
+      attempts,
+      maxAttempts: RULES.maxAttempts,
+      hintLevel: session.hintLevel ?? 0,
+      submittedEmpty: isEmptyAttempt(attempt as Attempt)
+    });
 
     await ctx.db.patch(sessionId, { attempts, taskResolved: resolved });
     await ctx.db.insert('sessionEvents', {
@@ -170,7 +214,10 @@ export const recordAttempt = mutation({
       misconception: verdict.misconception ?? null,
       attempts,
       resolved,
-      forcedWorkedStep: !correct && maxReached
+      forcedWorkedStep: !correct && maxReached,
+      nudgeKind: nudge.kind,
+      nudgeReason: nudge.reason,
+      coachInstruction: nudge.coachInstruction
     };
   }
 });
