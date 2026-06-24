@@ -2,7 +2,7 @@ import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 import type { QueryCtx } from './_generated/server';
 import type { Id } from './_generated/dataModel';
-import { validateInterviewResult } from './lesson/interview';
+import { validateInterviewResult, type InterviewResult } from './lesson/interview';
 import { STRAND_LABELS, type SkillStrand } from './lesson/vocab';
 
 // #22 — the Parent Interview store, realising issue #2's "parent interview"
@@ -11,6 +11,21 @@ import { STRAND_LABELS, type SkillStrand } from './lesson/vocab';
 // Realtime conversation; model proposes, system disposes (ADR-0001). One row
 // per child, upserted on re-interview. focusStrand is nullable — null means
 // "the selector decides", a graceful completion outcome.
+
+// Normalize the validated result to the DB row shape: schema stores focusStrand as
+// `v.optional(v.string())` (string | undefined), but the validator models it as
+// `SkillStrand | null`. null means "selector decides" and is stored as undefined;
+// the read query maps it back to null. One boundary, one direction.
+function toRow(value: InterviewResult) {
+  return {
+    focusStrand: value.focusStrand ?? undefined,
+    findsEasy: value.findsEasy,
+    avoids: value.avoids,
+    whenStuck: value.whenStuck,
+    triedBefore: value.triedBefore,
+    wantToUnderstand: value.wantToUnderstand
+  };
+}
 
 export const SUBMIT_ARGS = {
   childId: v.id('children'),
@@ -49,25 +64,12 @@ export const submitInterviewResult = mutation({
       .unique();
     const focusStrandValue = value.focusStrand;
     if (existing) {
-      await ctx.db.patch(existing._id, {
-        focusStrand: focusStrandValue,
-        findsEasy: value.findsEasy,
-        avoids: value.avoids,
-        whenStuck: value.whenStuck,
-        triedBefore: value.triedBefore,
-        wantToUnderstand: value.wantToUnderstand,
-        updatedAt: Date.now()
-      });
+      await ctx.db.patch(existing._id, { ...toRow(value), updatedAt: Date.now() });
       return { ok: true as const, saved: true, _id: existing._id };
     }
     const _id = await ctx.db.insert('interviews', {
       childId,
-      focusStrand: focusStrandValue,
-      findsEasy: value.findsEasy,
-      avoids: value.avoids,
-      whenStuck: value.whenStuck,
-      triedBefore: value.triedBefore,
-      wantToUnderstand: value.wantToUnderstand,
+      ...toRow(value),
       updatedAt: Date.now()
     });
     return { ok: true as const, saved: true, _id };
@@ -107,12 +109,12 @@ export const endInterviewEarly = mutation({
       .withIndex('by_child', (q) => q.eq('childId', input.childId))
       .unique();
     if (existing) {
-      await ctx.db.patch(existing._id, { ...value, updatedAt: Date.now() });
+      await ctx.db.patch(existing._id, { ...toRow(value), updatedAt: Date.now() });
       return { ok: true as const, _id: existing._id };
     }
     const _id = await ctx.db.insert('interviews', {
       childId: input.childId,
-      ...value,
+      ...toRow(value),
       updatedAt: Date.now()
     });
     return { ok: true as const, _id };
