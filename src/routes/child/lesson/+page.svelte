@@ -7,6 +7,8 @@
   import { VoiceController } from '$lib/voice.svelte';
   import { checkGuardrails } from '$lib/guardrails';
   import { shellLesson, parseNumber } from '$lib/lesson/shellLesson';
+  import Workspace from '$lib/components/Workspace.svelte';
+  import { describeWorkspace, type Inspection } from '$lib/lesson/workspace';
   import { Repeat2, Mic, Volume2, VolumeX, Send, Check } from '@lucide/svelte';
 
   type Line = { role: 'tutor' | 'child'; text: string; kind?: string };
@@ -118,6 +120,23 @@
     return p[Math.floor(Math.random() * p.length)];
   }
 
+  // #6 — child solved (or attempted) the task in the visual workspace.
+  async function handleWorkspaceCheck(result: Inspection, groups: number[]) {
+    await logEvent('workspace_check', 'child', undefined, { status: result.status, observed: groups, target: result.target });
+    const line = describeWorkspace(result);
+    if (result.status === 'correct') {
+      voice.stopListening();
+      await tutorSay(line, { expectAnswer: false });
+      await advance();
+    } else {
+      await tutorSay(line, { kind: 'tutor_turn', expectAnswer: true });
+    }
+  }
+
+  function handleWorkspaceInteract(action: string, groups: number[]) {
+    logEvent('workspace', 'child', undefined, { action, groups });
+  }
+
   async function advance() {
     if (qIndex < shellLesson.questions.length - 1) {
       qIndex += 1;
@@ -212,7 +231,13 @@
       <div class="text-xs font-bold uppercase tracking-widest text-paper-3/60">Your workbook</div>
       {#if current && phase !== 'done'}
         <div class="mt-2 font-display text-3xl font-bold">{current.expr} = ?</div>
-        <p class="mt-2 text-sm text-paper-3/60">A visual space to show your working is coming soon.</p>
+        <div class="mt-3">
+          <Workspace
+            target={{ groups: current.groups, perGroup: current.perGroup }}
+            onInteract={handleWorkspaceInteract}
+            onCheck={handleWorkspaceCheck}
+          />
+        </div>
       {:else}
         <div class="mt-2 font-display text-2xl font-bold">🎉 Lesson complete</div>
       {/if}

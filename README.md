@@ -45,6 +45,6 @@ bun run build          # production build
 
 ## Status vs issues
 
-Implemented: #1, #2, #3, #4, #5 (+ parent dashboard).
+Implemented: #1, #2, #3, #4, #5, #6 (+ parent dashboard).
 Implemented: #5 voice-first lesson shell.
 Next: #6 visual workspace → #7 lesson engine → #8 hint ladder.

@@ -2,16 +2,23 @@
 // This is NOT the structured lesson engine (that is #7); it only needs enough
 // turn-by-turn content to demonstrate end-to-end voice + turn-taking + events.
 
-export type ShellQuestion = { prompt: string; answer: number; expr: string };
+export type ShellQuestion = {
+  prompt: string;
+  answer: number;
+  expr: string;
+  // #6 equal-groups workspace target for this question
+  groups: number;
+  perGroup: number;
+};
 
 export const shellLesson = {
   id: 'shell-x6',
   title: 'Times tables · ×6',
   intro: "Hi! I'm Willow. Let's warm up your sixes together — I'll ask a few, you say the answer. Ready?",
   questions: [
-    { prompt: 'What is six times one?', answer: 6, expr: '6 × 1' },
-    { prompt: 'Nice one. What is six times two?', answer: 12, expr: '6 × 2' },
-    { prompt: "Let's try a bigger one. What is six times four?", answer: 24, expr: '6 × 4' }
+    { prompt: 'What is six times one?', answer: 6, expr: '6 × 1', groups: 1, perGroup: 6 },
+    { prompt: 'Nice one. What is six times two?', answer: 12, expr: '6 × 2', groups: 2, perGroup: 6 },
+    { prompt: "Let's try a bigger one. What is six times four?", answer: 24, expr: '6 × 4', groups: 4, perGroup: 6 }
   ] as ShellQuestion[],
   outro: 'Great work today! Your sixes are really starting to click. See you next time. 🌿'
 };
