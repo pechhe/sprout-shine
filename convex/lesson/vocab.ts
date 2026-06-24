@@ -83,3 +83,53 @@ export function isMisconceptionTag(x: string): x is MisconceptionTag {
 export function isPatternTag(x: string): x is PatternSignalTag {
   return (PATTERN_TAGS as readonly string[]).includes(x);
 }
+
+// #14 — Strands: the coarse maths areas the lesson engine selects between.
+// One Strand Anchor (anchorPlans.ts) per strand; finer-grained Skill Tags roll
+// up into strands. The Strand Selector ranks skills and the pre-warm cache holds
+// one plan per strand, so a re-route can switch strands near-instantly. This is
+// the controlled vocabulary the (future) Parent Interview's Focus Strand draws
+// from and the Strand Selector's override target.
+export const STRANDS = [
+  'number_sense',
+  'multiplication_division',
+  'fractions',
+  'word_problems',
+  'explaining_an_answer'
+] as const;
+export type Strand = (typeof STRANDS)[number];
+
+// How many plans the pre-warm cache holds per child (top N distinct strands):
+// covers both "continue" (rank 1) and "switch" (rank 2) re-route paths.
+export const PREWARM_CACHE_SIZE = 2;
+
+// Skill Tag -> Strand roll-up. Every SkillTag belongs to exactly one strand.
+const SKILL_TO_STRAND: Record<SkillTag, Strand> = {
+  number_sense_basic: 'number_sense',
+  multiplication_as_groups: 'multiplication_division',
+  multiplication_as_arrays: 'multiplication_division',
+  division_sharing: 'multiplication_division',
+  fractions_equal_parts: 'fractions',
+  fractions_number_line: 'fractions',
+  word_problem_translation: 'word_problems',
+  explanation_quality: 'explaining_an_answer',
+  checking_work: 'explaining_an_answer'
+};
+
+export function strandForSkillTag(skillTag: string): Strand | undefined {
+  return (SKILL_TO_STRAND as Record<string, Strand | undefined>)[skillTag];
+}
+
+// The representative Skill Tag each Strand Anchor is authored for — the
+// known-good first lesson in that strand and the generation target.
+export const STRAND_ANCHOR_SKILL: Record<Strand, SkillTag> = {
+  number_sense: 'number_sense_basic',
+  multiplication_division: 'multiplication_as_arrays',
+  fractions: 'fractions_equal_parts',
+  word_problems: 'word_problem_translation',
+  explaining_an_answer: 'explanation_quality'
+};
+
+export function isStrand(x: string): x is Strand {
+  return (STRANDS as readonly string[]).includes(x);
+}
