@@ -119,10 +119,14 @@ export default defineSchema({
 
   // #5 — structured session events. The audit trail for everything that
   // happens in a session; later slices add task/hint/misconception detail.
+  // #15 — `sessionId` is optional: a `digest_opened` event is a parent-facing
+  // engagement signal with no lesson session, but the event log (not a bespoke
+  // counter) is its correct home. Such rows are excluded from the by_session
+  // index (undefined) and still indexed by_child, so review surfaces are clean.
   sessionEvents: defineTable({
-    sessionId: v.id('sessions'),
+    sessionId: v.optional(v.id('sessions')),
     childId: v.id('children'),
-    // session_start | session_end | tutor_turn | child_turn | repeat | guardrail
+    // session_start | session_end | tutor_turn | child_turn | repeat | guardrail | digest_opened
     type: v.string(),
     role: v.optional(v.string()), // "tutor" | "child"
     text: v.optional(v.string()),

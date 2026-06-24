@@ -42,6 +42,24 @@ export const recordEvent = mutation({
   }
 });
 
+// #15 — emit a `digest_opened` engagement signal when a parent opens their
+// weekly digest. Keyed by digestId so "digest views" can be counted. No
+// lesson session is involved, so sessionId is omitted (it is optional on the
+// event ledger for exactly this case). This is the single write #15 introduces;
+// the metrics dashboard itself is read-only.
+export const recordDigestOpen = mutation({
+  args: { childId: v.id('children'), digestId: v.id('digests') },
+  handler: async (ctx, { childId, digestId }) => {
+    await ctx.db.insert('sessionEvents', {
+      childId,
+      type: 'digest_opened',
+      meta: { digestId },
+      at: Date.now()
+    });
+    return { ok: true as const };
+  }
+});
+
 // #5 — end a session and record the session_end event.
 export const end = mutation({
   args: { sessionId: v.id('sessions') },
