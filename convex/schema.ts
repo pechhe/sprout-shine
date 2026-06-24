@@ -78,6 +78,33 @@ export default defineSchema({
     updatedAt: v.number()
   }).index('by_child', ['childId']),
 
+  // #5 — a lesson session container (voice-first shell).
+  sessions: defineTable({
+    childId: v.id('children'),
+    lessonId: v.string(),
+    status: v.string(), // "active" | "ended"
+    mode: v.string(), // "voice" | "text"
+    startedAt: v.number(),
+    endedAt: v.optional(v.number())
+  })
+    .index('by_child', ['childId'])
+    .index('by_child_status', ['childId', 'status']),
+
+  // #5 — structured session events. The audit trail for everything that
+  // happens in a session; later slices add task/hint/misconception detail.
+  sessionEvents: defineTable({
+    sessionId: v.id('sessions'),
+    childId: v.id('children'),
+    // session_start | session_end | tutor_turn | child_turn | repeat | guardrail
+    type: v.string(),
+    role: v.optional(v.string()), // "tutor" | "child"
+    text: v.optional(v.string()),
+    meta: v.optional(v.any()),
+    at: v.number()
+  })
+    .index('by_session', ['sessionId'])
+    .index('by_child', ['childId']),
+
   // #3 — guardian consent + privacy settings. One row per child.
   consents: defineTable({
     childId: v.id('children'),

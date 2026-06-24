@@ -13,6 +13,7 @@ import type * as children from "../children.js";
 import type * as consent from "../consent.js";
 import type * as interviews from "../interviews.js";
 import type * as parents from "../parents.js";
+import type * as sessions from "../sessions.js";
 
 import type {
   ApiFromModules,
@@ -26,6 +27,7 @@ declare const fullApi: ApiFromModules<{
   consent: typeof consent;
   interviews: typeof interviews;
   parents: typeof parents;
+  sessions: typeof sessions;
 }>;
 
 /**

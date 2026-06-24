@@ -107,7 +107,7 @@
 
       <div class="mt-5 flex flex-wrap gap-3">
         {#if child.onboardedAt}
-          <Button variant="primary" onclick={() => goto('/child/onboarding')}>Start a session</Button>
+          <Button variant="primary" onclick={() => goto('/child/lesson')}>Start a session</Button>
           <Button variant="ghost" onclick={resetCoach}>Change coach</Button>
         {:else}
           <Button onclick={() => goto('/child/onboarding')}>Finish child onboarding →</Button>

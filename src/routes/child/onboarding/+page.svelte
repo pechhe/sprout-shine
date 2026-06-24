@@ -46,7 +46,7 @@
     busy = true;
     try {
       await completeOnboarding({ childId, tutorStyle, prefs: $state.snapshot(prefs) });
-      await goto('/dashboard');
+      await goto('/child/lesson');
     } finally {
       busy = false;
     }
