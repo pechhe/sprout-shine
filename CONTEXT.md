@@ -58,3 +58,41 @@ How a task is answered and validated: `manipulative` (Workspace inspector),
 `numeric` (parsed number), `choice` (exact match), or `explanation` (captured as
 evidence, not deterministically graded).
 _Avoid_: input type, response type
+
+**Learner Model**:
+A child's persistent, humble set of working hypotheses about their skills,
+misconceptions, and learning patterns, built from evidence across sessions. It is
+never a set of fixed labels or a diagnosis. It has a level and a confidence for
+each hypothesis so weak signals are not overstated.
+_Avoid_: profile, learner profile, student record, diagnosis
+
+**Skill State**:
+One hypothesis in the Learner Model for a single Skill Tag: an estimated level, a
+confidence, the number of evidence points seen, and when it was last seen. Updated
+from both diagnostic and lesson evidence.
+_Avoid_: score, grade, skill rating
+
+**Pattern Signal**:
+A working hypothesis in the Learner Model about *how* a child learns (e.g.
+benefits_from_visuals, rushes_when_confident, avoids_explaining) as opposed to a
+Skill State, which is about *what* they can do. Like a Skill State it carries a
+confidence so it is not treated as a fixed trait.
+_Avoid_: trait, personality label, learning style
+
+**Session Event**:
+An immutable record of one thing that happened in a session (an attempt graded,
+a hint shown, a phase changed). The raw log from which evidence is derived.
+_Avoid_: log line, telemetry
+
+**Skill Outcome**:
+The normalized unit a learner-model update consumes for a Skill Tag: the verdict,
+attempts taken, whether a hint was used, and the phase. Built deterministically
+from one Session Event. Distinct from the raw event and from the Skill State it
+updates.
+_Avoid_: result, attempt record
+
+**Pattern Observation**:
+The normalized unit a learner-model update consumes for a Pattern Signal: a tag,
+whether the evidence supports or argues against it, a source, and a confidence.
+Several build a Pattern Signal, the way several Skill Outcomes build a Skill State.
+_Avoid_: pattern instance, behavior log
