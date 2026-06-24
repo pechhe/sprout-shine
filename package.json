@@ -1,0 +1,41 @@
+{
+  "name": "sprout-shine",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "bun@1.3.14",
+  "description": "Sprout Shine — voice-first adaptive maths tutor for ages 7-10, with weekly parent learning insights.",
+  "scripts": {
+    "dev": "vp dev",
+    "build": "vp build",
+    "preview": "vp preview",
+    "test": "vp test",
+    "check": "vp check",
+    "check:svelte": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "prepare": "svelte-kit sync || echo ''",
+    "convex:dev": "convex dev",
+    "convex:codegen": "convex codegen"
+  },
+  "dependencies": {
+    "@lucide/svelte": "^1.21.0",
+    "bits-ui": "^2.13.0",
+    "clsx": "^2.1.1",
+    "convex": "^1.27.0",
+    "convex-svelte": "^0.14.0",
+    "tailwind-merge": "^3.4.0",
+    "tailwind-variants": "^3.1.1"
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-auto": "^7.0.1",
+    "@sveltejs/kit": "^2.67.0",
+    "@sveltejs/vite-plugin-svelte": "^7.1.2",
+    "@tailwindcss/vite": "^4.2.2",
+    "@types/node": "^25.5.2",
+    "svelte": "^5.55.1",
+    "svelte-check": "^4.4.6",
+    "tailwindcss": "^4.2.2",
+    "typescript": "^6.0.2",
+    "vite": "^8.1.0",
+    "vite-plus": "^0.2.1"
+  }
+}
