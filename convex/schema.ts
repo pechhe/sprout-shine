@@ -225,5 +225,23 @@ export default defineSchema({
       productImprovement: v.boolean() // opt-in only — OFF by default
     }),
     deletionRequestedAt: v.optional(v.number())
-  }).index('by_child', ['childId'])
+  }).index('by_child', ['childId']),
+
+  // #14 — the pre-warm cache. One row per child per strand holding the next
+  // lesson plan (generated+approved, or the Strand Anchor fallback). Pre-warmed
+  // at session-end when the Learner Model is freshest; read at session-start so
+  // the child starts instantly with no synchronous generation. Pruned each
+  // pre-warm to the new top strands (a mastered skill's queued plan is dropped).
+  queuedPlans: defineTable({
+    childId: v.id('children'),
+    strand: v.string(), // Strand (controlled vocab in lesson/vocab.ts)
+    skillTag: v.string(),
+    planId: v.id('lessonPlans'),
+    source: v.string(), // "generated" | "anchor"
+    rank: v.number(),
+    createdAt: v.number(),
+    generatedAt: v.number()
+  })
+    .index('by_child', ['childId'])
+    .index('by_child_strand', ['childId', 'strand'])
 });
