@@ -4,9 +4,10 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { QueryCtx, MutationCtx } from './_generated/server';
 import { currentTask, nextPosition, phaseContent, type Position } from './lesson/machine';
 import { gradeTask, type Attempt } from './lesson/grade';
-import { RULES, isMisconceptionTag, type Phase } from './lesson/vocab';
+import { RULES, isMisconceptionTag, isPatternTag, type Phase } from './lesson/vocab';
 import type { LessonPlan, Task } from './lesson/plan';
 import { decideAttemptNudge, decideHelpNudge, isEmptyAttempt } from './lesson/nudge';
+import { applyOutcome, refreshPatterns } from './learnerModel';
 
 // Strip a task down to what the client/model may see (no correct_state leaks of
 // other tasks; the current task keeps its target so the Workspace can render).
@@ -169,6 +170,7 @@ export const recordAttempt = mutation({
     const correct = verdict.status === 'correct' || verdict.status === 'captured';
     const maxReached = attempts >= RULES.maxAttempts;
     const resolved = correct || maxReached;
+    const now = Date.now();
 
     // #8 — choose the coaching move deterministically (are_you_sure / encourage_retry /
     // work_together / praise). Frustrated children never get 'are you sure?'.
@@ -182,12 +184,26 @@ export const recordAttempt = mutation({
     });
 
     await ctx.db.patch(sessionId, { attempts, taskResolved: resolved });
+    // #10 — enriched task_attempt meta so the learner-model reducer has a
+    // uniform input: skillTag (from the plan), phase, hintUsed, answerType.
+    // Only the *resolved* attempt is an evidence unit (`resolved:true`);
+    // mid-attempt events are audited but skipped by the reducer.
     await ctx.db.insert('sessionEvents', {
       sessionId,
       childId: session.childId,
       type: 'task_attempt',
-      meta: { taskId: task.id, status: verdict.status, attempts, observed: verdict.observed },
-      at: Date.now()
+      meta: {
+        taskId: task.id,
+        skillTag: plan.skillTag,
+        phase: pos.phase,
+        answerType: task.answerType,
+        status: verdict.status,
+        attempts,
+        hintUsed: (session.hintLevel ?? 0) > 0,
+        resolved,
+        observed: verdict.observed
+      },
+      at: now
     });
     if (verdict.misconception) {
       await ctx.db.insert('sessionEvents', {
@@ -195,7 +211,7 @@ export const recordAttempt = mutation({
         childId: session.childId,
         type: 'misconception',
         meta: { taskId: task.id, tag: verdict.misconception, source: 'validator', confidence: 0.9 },
-        at: Date.now()
+        at: now
       });
     }
     if (pos.phase === 'mastery_check' && resolved) {
@@ -205,7 +221,23 @@ export const recordAttempt = mutation({
         childId: session.childId,
         type: 'mastery_result',
         meta: { result: correct ? 'passed' : 'unresolved' },
-        at: Date.now()
+        at: now
+      });
+    }
+    // #10 — route resolved lesson evidence through the same reducer as the
+    // diagnostic, so one honest code path grows the Skill State. Explanation
+    // (captured) tasks are neutral evidence handled by the reducer at low
+    // confidence; the engine skips them here only to avoid a vacuous write when
+    // no deterministically-gradeable proof exists.
+    if (resolved && verdict.status !== 'captured') {
+      await applyOutcome(ctx, session.childId, {
+        skillTag: plan.skillTag,
+        verdict: verdict.status,
+        attempts,
+        hintUsed: (session.hintLevel ?? 0) > 0,
+        phase: pos.phase,
+        answerType: task.answerType,
+        timestamp: now
       });
     }
     return {
@@ -235,6 +267,29 @@ export const tagMisconception = mutation({
       meta: { tag, source: 'model', confidence: 0.4, phase: pos.phase },
       at: Date.now()
     });
+    return { ok: true };
+  }
+});
+
+// #10 TOOL: the model may propose a Pattern Signal from the controlled vocab
+// only. Joins `tag_misconception` in the controlled-vocabulary family. Stored
+// at lower confidence (source:'model') than deterministic signals — a model
+// guess can never harden into a trait. The reducer refreshes patternSignals.
+// Works in both lesson and diagnostic sessions: it only needs the child id.
+export const tagPattern = mutation({
+  args: { sessionId: v.id('sessions'), tag: v.string() },
+  handler: async (ctx, { sessionId, tag }) => {
+    if (!isPatternTag(tag)) return { ok: false, reason: 'unknown pattern tag' };
+    const session = await ctx.db.get(sessionId);
+    if (!session) throw new Error('session not found');
+    await ctx.db.insert('sessionEvents', {
+      sessionId,
+      childId: session.childId,
+      type: 'pattern_proposal',
+      meta: { tag, source: 'model', confidence: 0.25 },
+      at: Date.now()
+    });
+    await refreshPatterns(ctx, session.childId);
     return { ok: true };
   }
 });

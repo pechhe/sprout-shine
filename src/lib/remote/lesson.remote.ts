@@ -50,6 +50,22 @@ export const tagMisconception = command(
     })
 );
 
+// #10 — model-proposed learning-pattern hypothesis (controlled vocab).
+export const tagPattern = command(
+  'unchecked',
+  async (input: { sessionId: string; tag: string }) =>
+    await convex.mutation(api.engine.tagPattern, {
+      sessionId: input.sessionId as Id<'sessions'>,
+      tag: input.tag
+    })
+);
+
+// #10 — the Learner Model read surface: Skill States + Pattern Signals with
+// decay applied on read. Consumed by lesson selection (future) + weekly digest.
+export const learnerModel = query('unchecked', async (childId: string) =>
+  await convex.query(api.learnerModel.read, { childId: childId as Id<'children'> })
+);
+
 export const endLesson = command('unchecked', async (sessionId: string) => {
   await convex.mutation(api.sessions.end, { sessionId: sessionId as Id<'sessions'> });
   return { ok: true as const };

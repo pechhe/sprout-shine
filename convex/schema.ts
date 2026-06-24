@@ -150,6 +150,26 @@ export default defineSchema({
     .index('by_child', ['childId'])
     .index('by_child_skill', ['childId', 'skillTag']),
 
+  // #10 — Pattern Signals: working hypotheses about *how* a child learns
+  // (benefits_from_visuals, rushes_when_confident, …), distinct from Skill
+  // States (what they can do). Parallel storage shape to skillStates and, like
+  // them, a derived aggregate over sessionEvents (recomputed by the reducer).
+  // Deterministic detectors are authoritative where they exist; model-proposed
+  // patterns via the tag_pattern tool are capped at lower confidence.
+  patternSignals: defineTable({
+    childId: v.id('children'),
+    tag: v.string(), // PatternSignalTag (controlled vocab in vocab.ts)
+    level: v.string(), // "present" | "absent"
+    score: v.number(), // 0..1 likelihood the pattern holds (0.5 = no claim)
+    confidence: v.number(), // 0..1 — capped low for model-proposed patterns
+    evidenceCount: v.number(),
+    lastSeen: v.number(),
+    source: v.string(), // "deterministic" | "model"
+    updatedAt: v.number()
+  })
+    .index('by_child', ['childId'])
+    .index('by_child_tag', ['childId', 'tag']),
+
   // #3 — guardian consent + privacy settings. One row per child.
   consents: defineTable({
     childId: v.id('children'),

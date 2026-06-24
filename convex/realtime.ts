@@ -1,7 +1,7 @@
 import { action } from './_generated/server';
 import { v } from 'convex/values';
 import { api } from './_generated/api';
-import { MISCONCEPTION_TAGS } from './lesson/vocab';
+import { MISCONCEPTION_TAGS, PATTERN_TAGS } from './lesson/vocab';
 
 declare const process: { env: Record<string, string | undefined> };
 
@@ -33,6 +33,18 @@ const TOOLS = [
     parameters: {
       type: 'object',
       properties: { tag: { type: 'string', enum: [...MISCONCEPTION_TAGS] } },
+      required: ['tag'],
+      additionalProperties: false
+    }
+  },
+  {
+    type: 'function',
+    name: 'tag_pattern',
+    description:
+      'Propose a learning-pattern hypothesis from the fixed vocabulary. Use sparingly, only when you have observed clear behavioral evidence that is not already captured. The app stores it as a low-confidence working hypothesis, never a trait.',
+    parameters: {
+      type: 'object',
+      properties: { tag: { type: 'string', enum: [...PATTERN_TAGS] } },
       required: ['tag'],
       additionalProperties: false
     }
@@ -107,7 +119,8 @@ export const token = action({
 // drives item progression, the model narrates + may give hints).
 const DIAGNOSTIC_TOOLS = [
   TOOLS.find((t) => t.name === 'request_hint')!,
-  TOOLS.find((t) => t.name === 'tag_misconception')!
+  TOOLS.find((t) => t.name === 'tag_misconception')!,
+  TOOLS.find((t) => t.name === 'tag_pattern')!
 ];
 
 function buildDiagnosticInstructions(state: any): string {

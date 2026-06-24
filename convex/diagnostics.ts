@@ -6,14 +6,13 @@ import { gradeTask, type Attempt, type VerdictStatus } from './lesson/grade';
 import { decideAttemptNudge, decideHelpNudge, isEmptyAttempt } from './lesson/nudge';
 import { DIAGNOSTIC_ITEMS } from './lesson/diagnosticTasks';
 import {
-  estimateSkillFromDiagnostic,
   parentSkillView,
   closingFeedback,
   type SkillEstimate,
   type SkillLevel
 } from './lesson/skillState';
 import { RULES } from './lesson/vocab';
-import type { MisconceptionTag } from './lesson/vocab';
+import { applyOutcome, refreshPatterns } from './learnerModel';
 
 function publicItem(i: number) {
   const item = DIAGNOSTIC_ITEMS[i];
@@ -138,12 +137,26 @@ export const recordAttempt = mutation({
     });
 
     await ctx.db.patch(sessionId, { attempts, taskResolved: resolved });
+    const now = Date.now();
+    // #10 — enriched task_attempt meta so the learner-model reducer has a
+    // uniform input: phase:'diagnostic', hintUsed, answerType, and resolved
+    // (only the resolved attempt is an evidence unit).
     await ctx.db.insert('sessionEvents', {
       sessionId,
       childId: session.childId,
       type: 'task_attempt',
-      meta: { skillTag: item.skillTag, taskId: item.task.id, status: verdict.status, attempts, observed: verdict.observed },
-      at: Date.now()
+      meta: {
+        skillTag: item.skillTag,
+        taskId: item.task.id,
+        phase: 'diagnostic',
+        answerType: item.task.answerType,
+        status: verdict.status,
+        attempts,
+        hintUsed: (session.hintLevel ?? 0) > 0,
+        resolved,
+        observed: verdict.observed
+      },
+      at: now
     });
     if (verdict.misconception) {
       await ctx.db.insert('sessionEvents', {
@@ -151,7 +164,7 @@ export const recordAttempt = mutation({
         childId: session.childId,
         type: 'misconception',
         meta: { tag: verdict.misconception, source: 'validator', skillTag: item.skillTag, confidence: 0.9 },
-        at: Date.now()
+        at: now
       });
     }
 
@@ -159,62 +172,48 @@ export const recordAttempt = mutation({
       return { ok: true, verdict: verdict.status, misconception: verdict.misconception ?? null, attempts, resolved: false, nudgeKind: nudge.kind, nudgeReason: nudge.reason, coachInstruction: nudge.coachInstruction };
     }
 
-    // Resolved -> write/replace the skill-state estimate and advance.
-    const estimate = estimateSkillFromDiagnostic(
-      { verdict: verdict.status as VerdictStatus, attempts, hintUsed: (session.hintLevel ?? 0) > 0, resolved },
-      verdict.misconception as MisconceptionTag | null
-    );
-    const existing = await ctx.db
-      .query('skillStates')
-      .withIndex('by_child_skill', (q) => q.eq('childId', session.childId).eq('skillTag', item.skillTag))
-      .first();
-    if (existing) {
-      // keep higher-confidence evidence if somehow present
-      await ctx.db.patch(existing._id, {
-        level: estimate.level,
-        levelScore: estimate.levelScore,
-        confidence: Math.max(existing.confidence, estimate.confidence),
-        evidenceCount: existing.evidenceCount + 1,
-        lastSeen: Date.now(),
-        misconceptions: estimate.misconceptions,
-        source: 'diagnostic',
-        updatedAt: Date.now()
-      });
-    } else {
-      await ctx.db.insert('skillStates', {
-        childId: session.childId,
-        skillTag: item.skillTag,
-        level: estimate.level,
-        levelScore: estimate.levelScore,
-        confidence: estimate.confidence,
-        evidenceCount: 1,
-        lastSeen: Date.now(),
-        misconceptions: estimate.misconceptions,
-        source: 'diagnostic',
-        updatedAt: Date.now()
-      });
-    }
+    // #10 — diagnostic evidence now flows through the SAME reducer as lessons
+    // (one honest code path). #9's bespoke direct skillState writes are gone;
+    // the diagnostic is the no-prior degenerate case of updateSkillState.
+    const skillState = await applyOutcome(ctx, session.childId, {
+      skillTag: item.skillTag,
+      verdict: verdict.status as VerdictStatus,
+      attempts,
+      hintUsed: (session.hintLevel ?? 0) > 0,
+      phase: 'diagnostic',
+      answerType: item.task.answerType,
+      timestamp: now
+    });
+    const estimate: SkillEstimate = {
+      level: skillState.level,
+      levelScore: skillState.levelScore,
+      confidence: skillState.confidence,
+      evidenceCount: skillState.evidenceCount,
+      misconceptions: verdict.misconception ? [verdict.misconception] : []
+    };
     await ctx.db.insert('sessionEvents', {
       sessionId,
       childId: session.childId,
       type: 'mastery_result',
       meta: { skillTag: item.skillTag, level: estimate.level, confidence: estimate.confidence },
-      at: Date.now()
+      at: now
     });
 
     // Advance to the next diagnostic item (auto-advance on resolve keeps the
     // diagnostic short and guarantees completion well under 15 minutes).
     const nextI = i + 1;
     if (nextI >= DIAGNOSTIC_ITEMS.length) {
-      await ctx.db.patch(sessionId, { status: 'ended', endedAt: Date.now(), diagnosticTaskIndex: nextI });
+      await ctx.db.patch(sessionId, { status: 'ended', endedAt: now, diagnosticTaskIndex: nextI });
       const closing = await buildClosing(ctx, session.childId);
       await ctx.db.insert('sessionEvents', {
         sessionId,
         childId: session.childId,
         type: 'session_end',
         meta: { closing: closing.message },
-        at: Date.now()
+        at: now
       });
+      // #10 — refresh pattern signals from the full diagnostic event log.
+      await refreshPatterns(ctx, session.childId);
       return { ok: true, done: true, closing: closing.message, views: closing.views, skillEstimate: estimate };
     }
     await ctx.db.patch(sessionId, { diagnosticTaskIndex: nextI, attempts: 0, hintLevel: 0, taskResolved: false });
@@ -223,7 +222,7 @@ export const recordAttempt = mutation({
       childId: session.childId,
       type: 'phase_change',
       meta: { from: item.skillTag, to: DIAGNOSTIC_ITEMS[nextI].skillTag },
-      at: Date.now()
+      at: now
     });
     const updated = (await ctx.db.get(sessionId))!;
     return { ok: true, resolved: true, nudgeKind: nudge.kind, nudgeReason: nudge.reason, coachInstruction: nudge.coachInstruction, skillEstimate: estimate, next: snapshot(updated).item };

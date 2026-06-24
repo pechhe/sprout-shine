@@ -25,6 +25,31 @@ export const MISCONCEPTION_TAGS = [
 ] as const;
 export type MisconceptionTag = (typeof MISCONCEPTION_TAGS)[number];
 
+// #10 — Pattern Signal vocabulary. Behavioral hypotheses about *how* a child
+// learns (distinct from Skill States, which are about *what* they can do).
+// The first four are covered by deterministic detectors over the event log;
+// the last two stay model-only (low confidence) until plan tags / timing events
+// exist. All six are the controlled vocabulary the Realtime `tag_pattern` tool
+// may propose from — nothing outside this set is accepted.
+export const PATTERN_TAGS = [
+  'benefits_from_visuals',
+  'rushes_when_confident',
+  'persists_after_hint',
+  'avoids_explaining',
+  'responds_to_story_context',
+  'loses_focus_on_long_explanation'
+] as const;
+export type PatternSignalTag = (typeof PATTERN_TAGS)[number];
+
+// Deterministic Pattern Signal detectors cover only these (ADR-0002).
+export const DETERMINISTIC_PATTERN_TAGS = [
+  'benefits_from_visuals',
+  'rushes_when_confident',
+  'persists_after_hint',
+  'avoids_explaining'
+] as const;
+export type DeterministicPatternTag = (typeof DETERMINISTIC_PATTERN_TAGS)[number];
+
 export const ANSWER_TYPES = ['manipulative', 'numeric', 'choice', 'explanation'] as const;
 export type AnswerType = (typeof ANSWER_TYPES)[number];
 
@@ -54,4 +79,7 @@ export function isSkillTag(x: string): x is SkillTag {
 }
 export function isMisconceptionTag(x: string): x is MisconceptionTag {
   return (MISCONCEPTION_TAGS as readonly string[]).includes(x);
+}
+export function isPatternTag(x: string): x is PatternSignalTag {
+  return (PATTERN_TAGS as readonly string[]).includes(x);
 }

@@ -9,6 +9,7 @@
   import { getDashboard } from '$lib/remote/parents.remote';
   import { resetTutorStyle } from '$lib/remote/children.remote';
   import { updatePrivacy, requestDeletion } from '$lib/remote/consent.remote';
+  import { learnerModel } from '$lib/remote/lesson.remote';
 
   const coachMap: Record<string, { emoji: string; name: string; role: string }> = {
     willow: { emoji: '🌿', name: 'Willow', role: 'Calm coach' },
@@ -20,6 +21,7 @@
   let dash = $state<Awaited<ReturnType<typeof getDashboard>> | null>(null);
   let savingPrivacy = $state(false);
   let privacyMsg = $state<string | null>(null);
+  let model = $state<Awaited<ReturnType<typeof learnerModel>> | null>(null);
 
   const settings = $state({
     saveAudio: false,
@@ -38,6 +40,13 @@
     }
     if (dash.child._id) setChildId(dash.child._id);
     if (dash.consent?.settings) Object.assign(settings, dash.consent.settings);
+    // #10 — read the Learner Model (Skill States + Pattern Signals, decay
+    // applied on read). Stays humble: phrases, never scores/diagnoses.
+    try {
+      model = await learnerModel(dash.child._id);
+    } catch {
+      model = null;
+    }
     loading = false;
   }
 
@@ -114,6 +123,38 @@
         {/if}
       </div>
     </Card>
+
+    <!-- #10 Learner Model read surface: a humble "how they seem to be getting on" card.
+         Phrases only — never a score or a diagnosis. Stale skills are shown softer,
+         pattern signals stay working hypotheses. The weekly digest (#11) will reuse this read. -->
+    {#if model && (model.skills.length > 0 || model.patterns.length > 0)}
+      <Card class="mt-5">
+        <h2 class="font-display text-lg font-semibold text-ink">How {child.nickname} seems to be getting on</h2>
+        <p class="mt-1 text-sm text-muted">Built up gently from session evidence — working notes, not a label.</p>
+
+        {#if model.skills.length > 0}
+          <ul class="mt-4 grid gap-2">
+            {#each model.skills as s}
+              <li class="flex items-center justify-between gap-3 rounded-xl bg-paper px-4 py-2">
+                <span class="text-sm font-medium text-ink">{s.phrase}</span>
+                <span class="text-xs text-muted">
+                  {s.stale ? 'worth a gentle re-check soon' : 'recent'}
+                </span>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+
+        {#if model.patterns.filter((p) => p.level === 'present' && p.phrase).length > 0}
+          <h3 class="mt-5 text-sm font-semibold text-ink">How they seem to learn best</h3>
+          <ul class="mt-2 grid gap-2">
+            {#each model.patterns.filter((p) => p.level === 'present' && p.phrase) as p}
+              <li class="text-sm text-muted">· {p.phrase}</li>
+            {/each}
+          </ul>
+        {/if}
+      </Card>
+    {/if}
 
     <!-- Weekly digest placeholder -->
     <Card class="mt-5">
