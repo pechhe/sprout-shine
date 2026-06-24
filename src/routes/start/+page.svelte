@@ -7,7 +7,7 @@
   import Stepper from '$lib/components/Stepper.svelte';
   import { parentKey, setChildId } from '$lib/identity';
   import { confirmGuardian } from '$lib/remote/parents.remote';
-  import { saveChildProfile, saveInterview } from '$lib/remote/children.remote';
+  import { saveChildProfile } from '$lib/remote/children.remote';
 
   let step = $state(0);
   let busy = $state(false);
@@ -23,13 +23,6 @@
     enjoys: '',
     frustrations: '',
     preferredTone: ''
-  });
-  const interview = $state({
-    findsEasy: '',
-    avoids: '',
-    whenStuck: '',
-    triedBefore: '',
-    wantToUnderstand: ''
   });
 
   let childId = $state<string | null>(null);
@@ -68,13 +61,9 @@
         });
         childId = res.childId;
         setChildId(res.childId);
-        step = 2;
-      } else if (step === 2) {
-        if (!childId) {
-          error = 'Something went wrong — please go back a step.';
-          return;
-        }
-        await saveInterview({ childId, ...interview });
+        // #22 — the placeholder five-field interview form is gone; the
+        // AI-conducted Parent Interview is the only path, run later (after the
+        // diagnostic). Proceed to consent now.
         await goto('/consent');
       }
     } catch (e) {
@@ -95,7 +84,7 @@
 <div class="mx-auto max-w-2xl px-5 py-8">
   <div class="flex items-center justify-between">
     <Logo />
-    <Stepper steps={['Guardian', 'Child', 'Interview']} current={step} />
+    <Stepper steps={['Guardian', 'Child']} current={step} />
   </div>
 
   <Card class="mt-8">
@@ -164,28 +153,6 @@
           </select>
         </Field>
       </div>
-    {:else}
-      <h1 class="font-display text-2xl font-bold text-ink">A short interview</h1>
-      <p class="mt-2 text-muted">
-        Your answers stay private and help the tutor understand your child from day one.
-      </p>
-      <div class="mt-6 grid gap-5">
-        <Field label="What does your child find easy?">
-          <textarea class="ss-textarea" bind:value={interview.findsEasy}></textarea>
-        </Field>
-        <Field label="What do they tend to avoid?">
-          <textarea class="ss-textarea" bind:value={interview.avoids}></textarea>
-        </Field>
-        <Field label="What happens when they get stuck?">
-          <textarea class="ss-textarea" bind:value={interview.whenStuck}></textarea>
-        </Field>
-        <Field label="What have you already tried?">
-          <textarea class="ss-textarea" bind:value={interview.triedBefore}></textarea>
-        </Field>
-        <Field label="What do you most want to understand?">
-          <textarea class="ss-textarea" bind:value={interview.wantToUnderstand}></textarea>
-        </Field>
-      </div>
     {/if}
 
     {#if error}
@@ -199,7 +166,7 @@
         <span></span>
       {/if}
       <Button onclick={next} disabled={busy}>
-        {busy ? 'Saving…' : step === 2 ? 'Save & set privacy →' : 'Continue →'}
+        {busy ? 'Saving…' : 'Save & set privacy →'}
       </Button>
     </div>
   </Card>

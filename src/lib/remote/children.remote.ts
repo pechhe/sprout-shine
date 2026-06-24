@@ -32,29 +32,6 @@ export const saveChildProfile = command('unchecked', async (input: ProfileInput)
   return { childId };
 });
 
-// #2 — parent interview answers.
-export const saveInterview = command(
-  'unchecked',
-  async (input: {
-    childId: string;
-    findsEasy: string;
-    avoids: string;
-    whenStuck: string;
-    triedBefore: string;
-    wantToUnderstand: string;
-  }) => {
-    await convex.mutation(api.interviews.save, {
-      childId: input.childId as Id<'children'>,
-      findsEasy: input.findsEasy.trim(),
-      avoids: input.avoids.trim(),
-      whenStuck: input.whenStuck.trim(),
-      triedBefore: input.triedBefore.trim(),
-      wantToUnderstand: input.wantToUnderstand.trim()
-    });
-    return { ok: true as const };
-  }
-);
-
 // #4 — child onboarding: tutor style + learning preferences.
 export const completeOnboarding = command(
   'unchecked',

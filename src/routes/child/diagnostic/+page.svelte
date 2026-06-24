@@ -124,8 +124,9 @@
       try { await recordEvent({ sessionId, childId: childId!, type: 'session_end' }); } catch {}
     }
     realtime.shutdown();
-    // go to the lesson proper, or dashboard if no arrays plan
-    await goto('/child/lesson');
+    // #22 — the parent onboarding interview runs once after the diagnostic and
+    // before the first lesson, so the Focus Strand override covers lesson 1.
+    await goto('/parent/interview');
   }
 
   const item = $derived(diag?.item ?? null);
@@ -176,7 +177,7 @@
             <p class="pt-1 text-center text-xs text-paper-3/60">Learning signals from today — not labels. You can always correct anything later.</p>
           </div>
         {/if}
-        <Button class="mt-6" size="lg" variant="soft" onclick={finish}>Start my first lesson</Button>
+        <Button class="mt-6" size="lg" variant="soft" onclick={finish}>Done — what's next?</Button>
       </div>
     {:else}
       <div class="mt-6 flex items-center gap-3">

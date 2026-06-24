@@ -128,6 +128,28 @@
       </div>
     </Card>
 
+    <!-- #22 Parent Interview: the Focus Strand override the Strand Selector reads,
+         plus a re-do button (re-runnable by parent request, upserts the same row).
+         Founder eyeball surface (#23): shows what focus, if any, is currently set. -->
+    <Card class="mt-5">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 class="font-display text-lg font-semibold text-ink">Lesson focus</h2>
+          <p class="mt-1 text-sm text-muted">
+            {#if dash?.interview?.focusStrand}
+              You asked for lessons to lean towards
+              <span class="font-semibold text-green-deep capitalize">{dash.interview.focusStrand.replace(/_/g, ' ')}</span>.
+            {:else if dash?.interview}
+              No particular focus set — we'll pick what looks most useful each lesson.
+            {:else}
+              A short parent chat helps lessons focus on what matters to your family.
+            {/if}
+          </p>
+        </div>
+        <Button variant="soft" onclick={() => goto('/parent/interview')}>Update focus</Button>
+      </div>
+    </Card>
+
     <!-- #10 Learner Model read surface: a humble "how they seem to be getting on" card.
          Phrases only — never a score or a diagnosis. Stale skills are shown softer,
          pattern signals stay working hypotheses. The weekly digest (#11) will reuse this read. -->
