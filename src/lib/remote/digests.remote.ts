@@ -20,3 +20,16 @@ export const generateDigest = command(
       weekKey: input.weekKey
     })
 );
+
+// #15 — emit a `digest_opened` engagement signal when a parent opens their
+// weekly digest (the one write #15 introduces). Keyed by digestId so digest
+// views can be counted on the metrics dashboard. Fire-and-forget from the
+// digest route on open.
+export const recordDigestOpen = command(
+  'unchecked',
+  async (input: { childId: string; digestId: string }) =>
+    await convex.mutation(api.sessions.recordDigestOpen, {
+      childId: input.childId as Id<'children'>,
+      digestId: input.digestId as Id<'digests'>
+    })
+);

@@ -7,7 +7,7 @@
   import FeedbackBar from '$lib/components/FeedbackBar.svelte';
   import { parentKey, getChildId } from '$lib/identity';
   import { getDashboard } from '$lib/remote/parents.remote';
-  import { generateDigest, getLatestDigest } from '$lib/remote/digests.remote';
+  import { generateDigest, getLatestDigest, recordDigestOpen } from '$lib/remote/digests.remote';
   import { submitFeedback, type FeedbackTarget } from '$lib/remote/feedback.remote';
   import { Sparkles, ArrowLeft, RefreshCw, MessageCircleHeart } from '@lucide/svelte';
 
@@ -32,6 +32,9 @@
   let weekLabel = $state<string | null>(null);
   // #12 — reactions already submitted on this digest, keyed by section key.
   let submittedBySection = $state<Record<string, Set<string>>>({});
+  // #15 — tracks the digest we've already recorded an open for this mount, so
+  // refreshing the same week doesn't double-count views.
+  let openedDigestId = $state<string | null>(null);
 
   onMount(async () => {
     const dash = await getDashboard(parentKey());
@@ -51,6 +54,12 @@
     try {
       digest = await getLatestDigest(childId);
       if (digest?.weekKey) weekLabel = formatWeek(digest.weekKey);
+      // #15 — record a digest-opened engagement signal (fire-and-forget) whenever
+      // a distinct digest is shown. Keyed by digestId on the event ledger.
+      if (digest && digest._id !== openedDigestId) {
+        openedDigestId = digest._id;
+        void recordDigestOpen({ childId, digestId: digest._id }).catch(() => {});
+      }
       // Rebuild the submitted-reactions map from the digest's history.
       const bySection: Record<string, Set<string>> = {};
       const sections: SectionKey[] = ['improved', 'tricky', 'patterns', 'shine', 'home'];

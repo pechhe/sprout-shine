@@ -88,7 +88,11 @@
 <div class="mx-auto max-w-3xl px-5 py-8">
   <div class="flex items-center justify-between">
     <Logo />
-    <span class="text-xs font-bold uppercase tracking-widest text-muted">Parent</span>
+    <div class="flex items-center gap-3">
+      <!-- #15 — internal founder pilot dashboard (read-only aggregate over the ledger). -->
+      <a href="/dashboard/metrics" class="text-xs font-semibold text-muted hover:text-ink">Pilot metrics →</a>
+      <span class="text-xs font-bold uppercase tracking-widest text-muted">Parent</span>
+    </div>
   </div>
 
   {#if loading}
