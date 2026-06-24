@@ -11,13 +11,16 @@
 import type * as applications from "../applications.js";
 import type * as children from "../children.js";
 import type * as consent from "../consent.js";
+import type * as engine from "../engine.js";
 import type * as interviews from "../interviews.js";
 import type * as lesson_grade from "../lesson/grade.js";
+import type * as lesson_machine from "../lesson/machine.js";
 import type * as lesson_plan from "../lesson/plan.js";
 import type * as lesson_seedPlans from "../lesson/seedPlans.js";
 import type * as lesson_vocab from "../lesson/vocab.js";
 import type * as parents from "../parents.js";
 import type * as plans from "../plans.js";
+import type * as realtime from "../realtime.js";
 import type * as sessions from "../sessions.js";
 
 import type {
@@ -30,13 +33,16 @@ declare const fullApi: ApiFromModules<{
   applications: typeof applications;
   children: typeof children;
   consent: typeof consent;
+  engine: typeof engine;
   interviews: typeof interviews;
   "lesson/grade": typeof lesson_grade;
+  "lesson/machine": typeof lesson_machine;
   "lesson/plan": typeof lesson_plan;
   "lesson/seedPlans": typeof lesson_seedPlans;
   "lesson/vocab": typeof lesson_vocab;
   parents: typeof parents;
   plans: typeof plans;
+  realtime: typeof realtime;
   sessions: typeof sessions;
 }>;
 

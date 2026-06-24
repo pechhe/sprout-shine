@@ -69,8 +69,8 @@ export const generate = action({
     for (let attempt = 0; attempt < 2; attempt++) {
       const userMsg =
         attempt === 0
-          ? `Write a lesson for skill "${skillTag}", age band ${ageBand}.`
-          : `Your previous JSON failed validation:\n${lastErrors.join('\n')}\nReturn corrected JSON.`;
+          ? `Write a lesson for skill "${skillTag}", age band ${ageBand}. Return JSON only.`
+          : `Your previous JSON failed validation:\n${lastErrors.join('\n')}\nReturn corrected JSON only.`;
       const raw = await callOpenAI(instructions, userMsg);
       let plan: LessonPlan;
       try {

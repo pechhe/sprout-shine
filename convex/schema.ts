@@ -107,6 +107,7 @@ export default defineSchema({
     taskIndex: v.optional(v.number()),
     attempts: v.optional(v.number()),
     hintLevel: v.optional(v.number()),
+    taskResolved: v.optional(v.boolean()),
     masteryResult: v.optional(v.string()),
     startedAt: v.number(),
     endedAt: v.optional(v.number())
