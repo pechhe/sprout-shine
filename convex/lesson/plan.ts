@@ -14,7 +14,11 @@ import {
 
 export type ManipulativeTarget =
   | { kind: 'array'; rows: number; columns: number }
-  | { kind: 'equal_groups'; groups: number; perGroup: number };
+  | { kind: 'equal_groups'; groups: number; perGroup: number }
+  /** child places a marker on a tick of a labelled number line */
+  | { kind: 'number_line'; min: number; max: number; step: number; answer: number }
+  /** child splits a bar into equal parts and shades some of them */
+  | { kind: 'fraction_bars'; parts: number; shaded: number };
 
 export type Task = {
   id: string;
@@ -67,6 +71,20 @@ function validateTask(t: Task, where: string, errors: string[], opts: { mastery?
       errors.push(`${where}: array target needs rows & columns > 0`);
     } else if (m.kind === 'equal_groups' && !(m.groups > 0 && m.perGroup > 0)) {
       errors.push(`${where}: equal_groups target needs groups & perGroup > 0`);
+    } else if (m.kind === 'number_line') {
+      if (!(m.step > 0 && m.max > m.min)) {
+        errors.push(`${where}: number_line target needs step > 0 and max > min`);
+      } else if (!(m.answer >= m.min && m.answer <= m.max)) {
+        errors.push(`${where}: number_line answer must lie within [min, max]`);
+      } else if (Math.abs(Math.round((m.answer - m.min) / m.step) * m.step + m.min - m.answer) > 1e-9) {
+        errors.push(`${where}: number_line answer must sit on a tick (min + k*step)`);
+      }
+    } else if (m.kind === 'fraction_bars') {
+      if (!(m.parts > 1 && m.parts <= 12)) {
+        errors.push(`${where}: fraction_bars target needs 2..12 parts`);
+      } else if (!(m.shaded >= 1 && m.shaded <= m.parts)) {
+        errors.push(`${where}: fraction_bars shaded must be 1..parts`);
+      }
     }
   }
   if (t.answerType === 'numeric' && typeof t.numericAnswer !== 'number') {

@@ -60,9 +60,43 @@ export function inspectEqualGroups(
   return { status: 'partial', misconception, observed, expected };
 }
 
+// --- number line: marker placed on a tick vs the answer ---
+export function inspectNumberLine(
+  value: number | null,
+  target: { min: number; max: number; step: number; answer: number }
+): Verdict {
+  const expected = { answer: target.answer };
+  if (value === null) return { status: 'incorrect', expected };
+  const observed = { value };
+  if (Math.abs(value - target.answer) < 1e-9) return { status: 'correct', observed, expected };
+  const stepsOff = Math.abs(value - target.answer) / target.step;
+  const misconception: MisconceptionTag | undefined =
+    Math.abs(stepsOff - 1) < 1e-9 ? 'off_by_one' : undefined;
+  return { status: 'partial', misconception, observed, expected };
+}
+
+// --- fraction bars: bar split into parts with some shaded ---
+export function inspectFractionBars(
+  attempt: { parts: number; shaded: number },
+  target: { parts: number; shaded: number }
+): Verdict {
+  const observed = { parts: attempt.parts, shaded: attempt.shaded };
+  const expected = { parts: target.parts, shaded: target.shaded };
+  if (attempt.shaded === 0) return { status: 'incorrect', observed, expected };
+  if (attempt.parts === target.parts && attempt.shaded === target.shaded) {
+    return { status: 'correct', observed, expected };
+  }
+  let misconception: MisconceptionTag | undefined;
+  if (attempt.parts !== target.parts) misconception = 'counting_slip';
+  else if (Math.abs(attempt.shaded - target.shaded) === 1) misconception = 'off_by_one';
+  return { status: 'partial', misconception, observed, expected };
+}
+
 export type Attempt =
   | { kind: 'array'; rows: number[] }
   | { kind: 'equal_groups'; groups: number[] }
+  | { kind: 'number_line'; value: number | null }
+  | { kind: 'fraction_bars'; parts: number; shaded: number }
   | { kind: 'numeric'; value: number | null }
   | { kind: 'choice'; choice: string }
   | { kind: 'explanation'; text: string };
@@ -76,6 +110,12 @@ export function gradeTask(task: Task, attempt: Attempt): Verdict {
     case 'equal_groups':
       if (task.manipulative?.kind !== 'equal_groups') return { status: 'incorrect' };
       return inspectEqualGroups(attempt.groups, task.manipulative);
+    case 'number_line':
+      if (task.manipulative?.kind !== 'number_line') return { status: 'incorrect' };
+      return inspectNumberLine(attempt.value, task.manipulative);
+    case 'fraction_bars':
+      if (task.manipulative?.kind !== 'fraction_bars') return { status: 'incorrect' };
+      return inspectFractionBars(attempt, task.manipulative);
     case 'numeric':
       if (attempt.value === null) return { status: 'incorrect' };
       return attempt.value === task.numericAnswer

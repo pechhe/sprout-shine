@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { inspectArray, inspectEqualGroups, gradeTask } from '$convex/lesson/grade';
+import {
+  inspectArray,
+  inspectEqualGroups,
+  inspectNumberLine,
+  inspectFractionBars,
+  gradeTask
+} from '$convex/lesson/grade';
 import { arraysIntroPlan } from '$convex/lesson/seedPlans';
 
 describe('inspectArray', () => {
@@ -28,6 +34,51 @@ describe('inspectEqualGroups', () => {
   const target = { groups: 4, perGroup: 6 };
   it('correct', () => expect(inspectEqualGroups([6, 6, 6, 6], target).status).toBe('correct'));
   it('partial', () => expect(inspectEqualGroups([6, 6], target).status).toBe('partial'));
+});
+
+describe('inspectNumberLine', () => {
+  const target = { min: 0, max: 10, step: 1, answer: 7 };
+  it('correct placement', () => {
+    expect(inspectNumberLine(7, target).status).toBe('correct');
+  });
+  it('no marker is incorrect', () => {
+    expect(inspectNumberLine(null, target).status).toBe('incorrect');
+  });
+  it('one tick off -> off_by_one', () => {
+    const v = inspectNumberLine(8, target);
+    expect(v.status).toBe('partial');
+    expect(v.misconception).toBe('off_by_one');
+  });
+  it('far off -> partial, no tag', () => {
+    const v = inspectNumberLine(2, target);
+    expect(v.status).toBe('partial');
+    expect(v.misconception).toBeUndefined();
+  });
+  it('fractional steps: one step off -> off_by_one', () => {
+    const t = { min: 0, max: 1, step: 0.25, answer: 0.75 };
+    expect(inspectNumberLine(0.75, t).status).toBe('correct');
+    expect(inspectNumberLine(0.5, t).misconception).toBe('off_by_one');
+  });
+});
+
+describe('inspectFractionBars', () => {
+  const target = { parts: 4, shaded: 3 };
+  it('correct', () => {
+    expect(inspectFractionBars({ parts: 4, shaded: 3 }, target).status).toBe('correct');
+  });
+  it('nothing shaded is incorrect', () => {
+    expect(inspectFractionBars({ parts: 4, shaded: 0 }, target).status).toBe('incorrect');
+  });
+  it('wrong split -> counting_slip', () => {
+    const v = inspectFractionBars({ parts: 5, shaded: 3 }, target);
+    expect(v.status).toBe('partial');
+    expect(v.misconception).toBe('counting_slip');
+  });
+  it('right split, one piece off -> off_by_one', () => {
+    const v = inspectFractionBars({ parts: 4, shaded: 2 }, target);
+    expect(v.status).toBe('partial');
+    expect(v.misconception).toBe('off_by_one');
+  });
 });
 
 describe('gradeTask', () => {

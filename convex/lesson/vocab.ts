@@ -88,7 +88,7 @@ export const strandToSkillTags: Record<SkillStrand, SkillTag[]> = {
 export const ANSWER_TYPES = ['manipulative', 'numeric', 'choice', 'explanation'] as const;
 export type AnswerType = (typeof ANSWER_TYPES)[number];
 
-export const MANIPULATIVE_KINDS = ['equal_groups', 'array'] as const;
+export const MANIPULATIVE_KINDS = ['equal_groups', 'array', 'number_line', 'fraction_bars'] as const;
 export type ManipulativeKind = (typeof MANIPULATIVE_KINDS)[number];
 
 // Phases run strictly in this order.
