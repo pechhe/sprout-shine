@@ -60,6 +60,7 @@ const PERSONAL = [
 // edge. Reused at extraction on the five free-text fields.
 const LABELS = [
   'dyscalculia',
+  'dyscalculic',
   'dyslexic',
   'dyslexia',
   'adhd',
