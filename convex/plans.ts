@@ -29,7 +29,8 @@ Task = {
   hints: string[] (>=2, least->most revealing; the deepest hint is a worked step, never a bare answer),
   misconceptions: string[]
 }
-ManipulativeTarget = { kind: "array", rows: number, columns: number } | { kind: "equal_groups", groups: number, perGroup: number }`,
+ManipulativeTarget = { kind: "array", rows: number, columns: number } | { kind: "equal_groups", groups: number, perGroup: number } | { kind: "number_line", min: number, max: number, step: number, answer: number } | { kind: "fraction_bars", parts: number (2..12), shaded: number (1..parts) }`,
+    'Pick the manipulative that fits the skill: array/equal_groups for multiplication & division; number_line for number sense and fractions on a number line (the answer must sit on a tick: min + k*step); fraction_bars for fractions as equal parts of a whole.',
     `skillTag MUST be one of: ${SKILL_TAGS.join(', ')}.`,
     `misconceptions MUST be drawn only from: ${MISCONCEPTION_TAGS.join(', ')}.`,
     'The mastery check must require the child to PROVE understanding (manipulative or explanation), not just give a number.',

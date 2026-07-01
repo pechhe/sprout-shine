@@ -107,6 +107,16 @@ export class RealtimeSession {
     }
   }
 
+  // Silent context: the model sees it on its next turn but is not forced to
+  // respond. Used for live workspace state so the tutor "watches" the child
+  // work without narrating every move.
+  pushContext(text: string) {
+    this.#send({
+      type: 'conversation.item.create',
+      item: { type: 'message', role: 'user', content: [{ type: 'input_text', text }] }
+    });
+  }
+
   // Push the deterministic Verdict into the session as context; the model reacts.
   pushVerdict(summary: string) {
     this.#send({

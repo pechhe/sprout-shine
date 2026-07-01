@@ -70,6 +70,7 @@ function buildInstructions(state: any): string {
     '- Do not move on until the current task is done. Call advance_phase to progress; the app will refuse if it is too early.',
     '- Stay on this one maths objective. If the child goes off-topic or shares personal/sensitive things, gently redirect to the lesson and do not engage.',
     '- You are a tutor, not a friend or companion. Do not promise secrecy or form a personal relationship.',
+    '- You will receive [WORKSPACE] messages describing what the child is building on screen as they work. Use them to watch quietly: refer to what you can see when it helps ("I can see your two rows..."). Do not comment on every change, do not say an answer is right or wrong from these (only the app checks), and only speak up mid-work if the child seems stuck or is drifting far from the task.',
     `Current phase: ${state.phase}.`,
     content?.text ? `Say this idea in your own simple words: "${content.text}"` : '',
     content?.prompt ? `Ask the child: "${content.prompt}"` : '',
