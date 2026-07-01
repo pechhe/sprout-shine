@@ -1,5 +1,6 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
+import { internal } from './_generated/api';
 
 // #5 — start a lesson session and record the session_start event.
 export const start = mutation({
@@ -42,7 +43,30 @@ export const recordEvent = mutation({
   }
 });
 
+// #15 — emit a `digest_opened` engagement signal when a parent opens their
+// weekly digest. Keyed by digestId so "digest views" can be counted. No
+// lesson session is involved, so sessionId is omitted (it is optional on the
+// event ledger for exactly this case). This is the single write #15 introduces;
+// the metrics dashboard itself is read-only.
+export const recordDigestOpen = mutation({
+  args: { childId: v.id('children'), digestId: v.id('digests') },
+  handler: async (ctx, { childId, digestId }) => {
+    await ctx.db.insert('sessionEvents', {
+      childId,
+      type: 'digest_opened',
+      meta: { digestId },
+      at: Date.now()
+    });
+    return { ok: true as const };
+  }
+});
+
 // #5 — end a session and record the session_end event.
+// #14 — pre-warm the next lesson plan in the background (no await): at
+// session-end the Learner Model is freshest (#10 reducer just consumed the
+// session's outcomes), so the Strand Selector's ranked output is most accurate
+// here. The next session-start reads the queued, validated plan and starts
+// instantly — no synchronous generation on the eager path.
 export const end = mutation({
   args: { sessionId: v.id('sessions') },
   handler: async (ctx, { sessionId }) => {
@@ -56,6 +80,11 @@ export const end = mutation({
       meta: { durationMs: Date.now() - session.startedAt },
       at: Date.now()
     });
+    // Diagnostic sessions (lessonId 'diagnostic') pre-warm from their own end
+    // path in diagnostics.ts; lesson sessions pre-warm here.
+    if (session.lessonId !== 'diagnostic') {
+      await ctx.scheduler.runAfter(0, internal.prewarm.prewarm, { childId: session.childId });
+    }
   }
 });
 

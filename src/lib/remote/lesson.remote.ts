@@ -14,6 +14,24 @@ export const startLesson = command(
     })
 );
 
+// #14 — start a lesson against the pre-warmed, validated plan (or strand anchor
+// fallback). No synchronous generation on the eager path: the next plan was
+// pre-warmed at the prior session-end / diagnostic-end.
+export const startQueuedLesson = command(
+  'unchecked',
+  async (input: { childId: string; mode?: string }) =>
+    await convex.mutation(api.engine.startQueued, {
+      childId: input.childId as Id<'children'>,
+      mode: input.mode
+    })
+);
+
+// #14 — seed the five Strand Anchors as approved (deploy-time validation of the
+// fail-safe floor). Idempotent.
+export const seedAnchors = command('unchecked', async () =>
+  await convex.mutation(api.prewarm.seedAnchors, {})
+);
+
 export const lessonState = query('unchecked', async (sessionId: string) =>
   await convex.query(api.engine.state, { sessionId: sessionId as Id<'sessions'> })
 );
@@ -48,6 +66,22 @@ export const tagMisconception = command(
       sessionId: input.sessionId as Id<'sessions'>,
       tag: input.tag
     })
+);
+
+// #10 — model-proposed learning-pattern hypothesis (controlled vocab).
+export const tagPattern = command(
+  'unchecked',
+  async (input: { sessionId: string; tag: string }) =>
+    await convex.mutation(api.engine.tagPattern, {
+      sessionId: input.sessionId as Id<'sessions'>,
+      tag: input.tag
+    })
+);
+
+// #10 — the Learner Model read surface: Skill States + Pattern Signals with
+// decay applied on read. Consumed by lesson selection (future) + weekly digest.
+export const learnerModel = query('unchecked', async (childId: string) =>
+  await convex.query(api.learnerModel.read, { childId: childId as Id<'children'> })
 );
 
 export const endLesson = command('unchecked', async (sessionId: string) => {

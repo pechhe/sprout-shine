@@ -4,12 +4,14 @@
   import Button from '$lib/components/Button.svelte';
   import WorkspaceArray from '$lib/components/WorkspaceArray.svelte';
   import Workspace from '$lib/components/Workspace.svelte';
+  import WorkspaceNumberLine from '$lib/components/WorkspaceNumberLine.svelte';
+  import WorkspaceFractionBars from '$lib/components/WorkspaceFractionBars.svelte';
   import { getChildId } from '$lib/identity';
   import { RealtimeSession } from '$lib/realtime.svelte';
   import { checkGuardrails } from '$lib/guardrails';
   import { recordEvent } from '$lib/remote/sessions.remote';
   import {
-    startLesson,
+    startQueuedLesson,
     realtimeToken,
     requestHint,
     recordAttempt,
@@ -18,8 +20,6 @@
     endLesson
   } from '$lib/remote/lesson.remote';
   import { Volume2, VolumeX, Lightbulb } from '@lucide/svelte';
-
-  const SKILL = 'multiplication_as_arrays';
 
   let childId = $state<string | null>(null);
   let sessionId = $state<string | null>(null);
@@ -78,7 +78,10 @@
     }
     connecting = true;
     try {
-      const res = await startLesson({ childId, skillTag: SKILL });
+      // #14 — start against the pre-warmed, validated plan (or strand anchor
+      // fallback). No synchronous generation; the plan was pre-warmed at the
+      // prior session-end / diagnostic-end.
+      const res = await startQueuedLesson({ childId });
       sessionId = res.sessionId;
       lesson = res;
       started = true;
@@ -88,16 +91,30 @@
     }
   }
 
+  // Live workspace streaming: the tutor "watches" the child work. Debounced,
+  // pushed as silent context (no forced response) so it never narrates every tap.
+  let streamTimer: ReturnType<typeof setTimeout> | undefined;
+  function streamWorkspace(description: string) {
+    clearTimeout(streamTimer);
+    streamTimer = setTimeout(() => {
+      if (realtime.state !== 'live') return;
+      realtime.pushContext(
+        `[WORKSPACE] ${description} They have not tapped Check yet — this is just what is on their screen right now.`
+      );
+    }, 2000);
+  }
+
   // Child solved (or attempted) the task in the workspace. The engine grades it
   // deterministically; we feed the verdict to the model to react to.
-  async function handleCheck(rows: number[]) {
+  async function handleCheck(attempt: Record<string, unknown>, built: string) {
     if (!sessionId) return;
-    const r = await recordAttempt({ sessionId, attempt: { kind: 'array', rows } });
+    clearTimeout(streamTimer); // the verdict supersedes any pending workspace update
+    const r = await recordAttempt({ sessionId, attempt });
     lesson = { ...lesson, attempts: r.attempts, taskResolved: r.resolved };
     lastVerdict = r.verdict ?? null;
     currentHint = ''; // verdict clears any stale hint
     const parts = [
-      `The child built rows with [${rows.join(', ')}] counters.`,
+      `The child ${built}.`,
       `The app checked it: verdict is "${r.verdict}".`,
       r.misconception ? `Likely misconception: ${r.misconception}.` : '',
       r.resolved ? 'This task is now resolved.' : 'They can try again.',
@@ -133,11 +150,8 @@
     await goto('/dashboard');
   }
 
-  const isArrayTask = $derived(
-    lesson?.task?.answerType === 'manipulative' && lesson?.task?.manipulative?.kind === 'array'
-  );
-  const isGroupsTask = $derived(
-    lesson?.task?.answerType === 'manipulative' && lesson?.task?.manipulative?.kind === 'equal_groups'
+  const manipKind = $derived(
+    lesson?.task?.answerType === 'manipulative' ? lesson?.task?.manipulative?.kind : null
   );
   const lastTutor = $derived(realtime.captions.filter((c) => c.role === 'tutor').at(-1)?.text ?? '');
   const statusLabel = $derived(
@@ -152,7 +166,10 @@
             : ''
   );
 
-  onDestroy(() => realtime.shutdown());
+  onDestroy(() => {
+    clearTimeout(streamTimer);
+    realtime.shutdown();
+  });
 </script>
 
 <svelte:head><title>Lesson · Sprout Shine</title></svelte:head>
@@ -219,12 +236,47 @@
             </p>
           {/if}
           <div class="mt-3">
-            {#if isArrayTask}
-              <WorkspaceArray target={lesson.task.manipulative} onCheck={handleCheck} />
-            {:else if isGroupsTask}
+            {#if manipKind === 'array'}
+              <WorkspaceArray
+                target={lesson.task.manipulative}
+                onInteract={(_a, rows) =>
+                  streamWorkspace(
+                    `Task: build ${lesson.task.manipulative.rows} rows of ${lesson.task.manipulative.columns}. The child's array so far: ${rows.length} row(s) holding [${rows.join(', ')}] counters.`
+                  )}
+                onCheck={(rows) => handleCheck({ kind: 'array', rows }, `built rows with [${rows.join(', ')}] counters`)}
+              />
+            {:else if manipKind === 'equal_groups'}
               <Workspace
                 target={lesson.task.manipulative}
-                onCheck={(_r, groups) => handleCheck(groups)}
+                onInteract={(_a, groups) =>
+                  streamWorkspace(
+                    `Task: make ${lesson.task.manipulative.groups} groups of ${lesson.task.manipulative.perGroup}. The child's groups so far: ${groups.length} group(s) holding [${groups.join(', ')}] counters.`
+                  )}
+                onCheck={(_r, groups) =>
+                  handleCheck({ kind: 'equal_groups', groups }, `made groups holding [${groups.join(', ')}] counters`)}
+              />
+            {:else if manipKind === 'number_line'}
+              <WorkspaceNumberLine
+                target={lesson.task.manipulative}
+                onInteract={(_a, value) =>
+                  streamWorkspace(
+                    `Task: place a marker on the number line (${lesson.task.manipulative.min} to ${lesson.task.manipulative.max}). The child's marker is ${value === null ? 'not placed yet' : `at ${value}`}.`
+                  )}
+                onCheck={(value) =>
+                  handleCheck({ kind: 'number_line', value }, `placed the marker at ${value}`)}
+              />
+            {:else if manipKind === 'fraction_bars'}
+              <WorkspaceFractionBars
+                target={lesson.task.manipulative}
+                onInteract={(_a, s) =>
+                  streamWorkspace(
+                    `Task: show ${lesson.task.manipulative.shaded}/${lesson.task.manipulative.parts} on a fraction bar. The child's bar is split into ${s.parts} piece(s) with ${s.shaded} coloured in.`
+                  )}
+                onCheck={(s) =>
+                  handleCheck(
+                    { kind: 'fraction_bars', parts: s.parts, shaded: s.shaded },
+                    `split the bar into ${s.parts} pieces and coloured ${s.shaded} in`
+                  )}
               />
             {/if}
           </div>

@@ -67,9 +67,14 @@ export default defineSchema({
     createdAt: v.number()
   }).index('by_parent', ['parentId']),
 
-  // #2 — parent interview answers (kept separate; updatable over time).
+  // #2/#22 — parent interview answers. The five free-text fields are retained
+  // from the placeholder form; #22 repurposes them as the structured outputs the
+  // AI-conducted interview elicits. focusStrand is the load-bearing override the
+  // Strand Selector (#14) reads (nullable = "the selector decides"). One row per
+  // child, upserted on re-interview.
   interviews: defineTable({
     childId: v.id('children'),
+    focusStrand: v.optional(v.string()), // #22 — SkillStrand | null
     findsEasy: v.string(),
     avoids: v.string(),
     whenStuck: v.string(),
@@ -119,10 +124,14 @@ export default defineSchema({
 
   // #5 — structured session events. The audit trail for everything that
   // happens in a session; later slices add task/hint/misconception detail.
+  // #15 — `sessionId` is optional: a `digest_opened` event is a parent-facing
+  // engagement signal with no lesson session, but the event log (not a bespoke
+  // counter) is its correct home. Such rows are excluded from the by_session
+  // index (undefined) and still indexed by_child, so review surfaces are clean.
   sessionEvents: defineTable({
-    sessionId: v.id('sessions'),
+    sessionId: v.optional(v.id('sessions')),
     childId: v.id('children'),
-    // session_start | session_end | tutor_turn | child_turn | repeat | guardrail
+    // session_start | session_end | tutor_turn | child_turn | repeat | guardrail | digest_opened
     type: v.string(),
     role: v.optional(v.string()), // "tutor" | "child"
     text: v.optional(v.string()),
@@ -150,6 +159,64 @@ export default defineSchema({
     .index('by_child', ['childId'])
     .index('by_child_skill', ['childId', 'skillTag']),
 
+  // #10 — Pattern Signals: working hypotheses about *how* a child learns
+  // (benefits_from_visuals, rushes_when_confident, …), distinct from Skill
+  // States (what they can do). Parallel storage shape to skillStates and, like
+  // them, a derived aggregate over sessionEvents (recomputed by the reducer).
+  // Deterministic detectors are authoritative where they exist; model-proposed
+  // patterns via the tag_pattern tool are capped at lower confidence.
+  patternSignals: defineTable({
+    childId: v.id('children'),
+    tag: v.string(), // PatternSignalTag (controlled vocab in vocab.ts)
+    level: v.string(), // "present" | "absent"
+    score: v.number(), // 0..1 likelihood the pattern holds (0.5 = no claim)
+    confidence: v.number(), // 0..1 — capped low for model-proposed patterns
+    evidenceCount: v.number(),
+    lastSeen: v.number(),
+    source: v.string(), // "deterministic" | "model"
+    updatedAt: v.number()
+  })
+    .index('by_child', ['childId'])
+    .index('by_child_tag', ['childId', 'tag']),
+
+  // #11 — the weekly Digest. One row per child per calendar week. The
+  // "fat" row embeds the Evidence Pack JSON (mirrors lessonPlans.plan) so
+  // review (#13) and corrections (#12) can trace every line to evidence.
+  // status is the seam #13's review console + gate inherit: for the concierge
+  // pilot new digests are 'visible' (generate-and-show); #13 flips the default
+  // to 'draft' behind its toggle with no schema retrofit.
+  digests: defineTable({
+    childId: v.id('children'),
+    weekKey: v.string(), // ISO-8601 "YYYY-WNN"
+    status: v.string(), // "visible" | "draft" | "rejected"
+    evidencePack: v.any(), // frozen EvidencePack (Layer 1)
+    draft: v.any(), // raw LLM draft (Layer 2)
+    guardrailedDraft: v.any(), // GuardrailedDigest (Layer 3)
+    chosenCandidateId: v.optional(v.string()),
+    generatedBy: v.string(), // model id
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index('by_child', ['childId'])
+    .index('by_child_week', ['childId', 'weekKey']),
+
+  // #12 — Parent Feedback. A low-weight interpretation signal layered
+  // alongside sessionEvents into the Learner Model (ADR-0004). Stored in its
+  // own table because feedback carries no session/task context. Two channels:
+  // 'model' (truth-claims, feeds the reducer) and 'presentation' (surfacing
+  // prefs, read by Digest layer 1). The digests row from #11 is untouched.
+  parentFeedback: defineTable({
+    childId: v.id('children'),
+    digestId: v.id('digests'),
+    channel: v.string(), // "model" | "presentation"
+    reaction: v.string(), // sounds_right | doesn't_sound_right | useful | not_useful | want_less | want_more
+    target: v.any(), // {kind:'digest'} | {kind:'section', section} | {kind:'evidence', section, targetRef}
+    at: v.number()
+  })
+    .index('by_child', ['childId'])
+    .index('by_child_digest', ['childId', 'digestId'])
+    .index('by_target', ['childId', 'channel']),
+
   // #3 — guardian consent + privacy settings. One row per child.
   consents: defineTable({
     childId: v.id('children'),
@@ -163,5 +230,23 @@ export default defineSchema({
       productImprovement: v.boolean() // opt-in only — OFF by default
     }),
     deletionRequestedAt: v.optional(v.number())
-  }).index('by_child', ['childId'])
+  }).index('by_child', ['childId']),
+
+  // #14 — the pre-warm cache. One row per child per strand holding the next
+  // lesson plan (generated+approved, or the Strand Anchor fallback). Pre-warmed
+  // at session-end when the Learner Model is freshest; read at session-start so
+  // the child starts instantly with no synchronous generation. Pruned each
+  // pre-warm to the new top strands (a mastered skill's queued plan is dropped).
+  queuedPlans: defineTable({
+    childId: v.id('children'),
+    strand: v.string(), // Strand (controlled vocab in lesson/vocab.ts)
+    skillTag: v.string(),
+    planId: v.id('lessonPlans'),
+    source: v.string(), // "generated" | "anchor"
+    rank: v.number(),
+    createdAt: v.number(),
+    generatedAt: v.number()
+  })
+    .index('by_child', ['childId'])
+    .index('by_child_strand', ['childId', 'strand'])
 });

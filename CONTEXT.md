@@ -96,3 +96,110 @@ The normalized unit a learner-model update consumes for a Pattern Signal: a tag,
 whether the evidence supports or argues against it, a source, and a confidence.
 Several build a Pattern Signal, the way several Skill Outcomes build a Skill State.
 _Avoid_: pattern instance, behavior log
+
+**Digest**:
+A weekly parent-facing summary built only from structured evidence — what
+improved, what was tricky, how the child seems to learn best, one shine moment,
+and one thing to try at home. Never a transcript dump, never a diagnosis. Built
+from an evidence-pack (deterministic) drafted into constrained prose, then passed
+through a guardrail. Carries a status so it can be gated by review.
+_Avoid_: report, scorecard, summary email
+
+**Evidence Pack**:
+The deterministic, structured, week-scoped bundle of facts a Digest is written
+from: improved/tricky skills, learning patterns, candidate shine moments, and the
+inputs for a home suggestion. Frozen once per child per week at generation and
+persisted, so review and corrections trace every line back to evidence. Never
+includes raw audio or full transcripts.
+_Avoid_: digest payload, data blob
+
+**Shine Moment**:
+One concrete moment in a week where the child showed unusual strategy,
+persistence, creativity, explanation, or transfer. Chosen by the LLM only from a
+ranked list of candidates surfaced by the evidence-pack, and traceable back to
+its source event. When there are no candidates, the Digest uses a gentle fallback
+rather than fabricating one.
+_Avoid_: highlight, win, achievement
+
+**Parent Feedback**:
+A parent's recorded interpretation of a Digest — or a specific part of it —
+separate from the structured Evidence Pack and never overwriting it. Pinned to
+the part it concerns (the whole Digest, a section, or a piece of evidence such as
+a Shine Moment or Skill State), so the signal says *what* the parent agreed with,
+disagreed with, or wanted more or less of.
+_Avoid_: rating, review, parent comment
+
+**Interpretation Signal**:
+A structured record of someone's read on a learner-model claim — a Session
+Event from a lesson, or a piece of Parent Feedback. All interpretation signals
+are humble inputs to the Learner Model; none overwrites the others. The Learner
+Model stays recomputable from the full set.
+_Avoid_: correction entry, feedback datum
+
+**Feedback Channel**:
+Which kind of thing a Parent Feedback record is. A *model* channel feedback is a
+truth-claim about accuracy (this pattern is / isn't my child) and feeds the
+Learner Model's reducer at a low, source-scaled weight. A *presentation* channel
+feedback is a preference about what the Digest surfaces (useful / not useful /
+less / more) and never touches model confidence — it only shapes future Evidence
+Packs. The split keeps a preference from corrupting the model.
+_Avoid_: feedback type, reaction class
+
+**Re-consent Prompt**:
+A gentle, one-time question the Digest asks when a parent's earlier suppression
+of a pattern has faded *and* fresh evidence still triggers it. The model keeps
+the truthful pattern behind the scenes; the Digest never silently re-labels a
+child without fresh consent. Ignored prompts default back to suppressed.
+_Avoid_: re-surfacing notice, expiry alert
+
+**Strand Anchor**:
+One hand-authored Lesson Plan per maths strand — the highest-quality, always-
+validated, always-runnable plan for that strand. Not sample content and not
+retired when on-the-fly generation matures: it is the permanent fail-safe floor
+the lesson engine falls back to when a generated plan can't be validated, and
+the known-good introduction a child gets on their first lesson in a strand.
+_Avoid_: seed lesson, template lesson, starter plan
+
+**Parent Interview**:
+An AI-conducted onboarding conversation with a parent (the realisation of the
+issue #2 "parent interview" intent, replacing the placeholder form). Runs once
+after the diagnostic and before the first lesson's pre-warm, and again only if
+the parent asks. A fluid, free-follow-up voice conversation whose one structured
+output is a coarse Focus Strand the Strand Selector uses to override its top
+candidate (or null, meaning the selector decides). No priming rules; the only
+hard rule is the project's no-labels guardrail. Completion is participation-
+based (the parent is never trapped behind a voice conversation), so the child's
+first lesson is never blocked.
+_Avoid_: intake form, survey, parent questionnaire
+
+**Focus Strand**:
+The coarse maths area a parent nominates during the Parent Interview for the next
+phase of lessons — one of a small controlled vocabulary (number sense,
+multiplication & division, fractions, word problems, explaining an answer) or
+null. An override, not a directive: it sets only the Strand Selector's top
+candidate; the selector still ranks the rest and the Strand Anchor still applies.
+Distinct from the fine-grained Skill Tags the selector picks within a strand.
+_Avoid_: focus topic, parent pick, lesson choice
+
+**Strand Selector**:
+The pure, deterministic function (`selectStrand`) that ranks candidate Skill Tags
+for the next lesson, grounded in the Learner Model. Priorities, highest first:
+consolidation of a just-passed mastery, then the weakest active skill (with stuck
+skills — those with unresolved mastery across the stuck threshold — deprioritised
+below both). Emits a ranked list, not a single pick, so the pre-warm cache can
+hold the top 1–2 candidates and cover both "continue" and "switch" redirection
+paths. The Parent Interview's Focus Strand overrides only the #1 candidate; the
+ranked list and priorities stay stable. Never picks lesson content — ADR-0001:
+the validated plan is the guardrail, the selector only chooses the target.
+_Avoid_: lesson picker, recommendation engine, skill ranker
+
+**Pre-warm**:
+The background generation+validation of a child's next Lesson Plan at
+session-end (or diagnostic-end for the first lesson), when the Learner Model is
+freshest — the #10 reducer has just consumed the session's outcomes. The plan is
+queued (generated+approved, or the Strand Anchor on validation failure) and read
+at the next session-start, so the child starts instantly into a Realtime tutor
+with no synchronous generation on the eager path. The cache holds the top
+1–2 distinct-strand plans and is pruned each pre-warm to the new top strands (a
+mastered skill's queued plan is dropped).
+_Avoid_: prefetch, pre-generation, plan cache
