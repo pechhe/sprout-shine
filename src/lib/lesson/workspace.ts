@@ -4,7 +4,11 @@
 // engine (#7) and tests can reason about workspace state without any UI.
 
 export type EqualGroupsTarget = { groups: number; perGroup: number };
-export type WorkspaceStatus = 'correct' | 'partial' | 'incorrect';
+export type WorkspaceKind = "array" | "equal_groups";
+export type WorkspaceAttempt =
+  | { kind: "array"; rows: number[] }
+  | { kind: "equal_groups"; groups: number[] };
+export type WorkspaceStatus = "correct" | "partial" | "incorrect";
 
 export type Inspection = {
   status: WorkspaceStatus;
@@ -16,6 +20,11 @@ export type Inspection = {
   target: EqualGroupsTarget;
 };
 
+/** Preserve the workspace kind when sending machine-inspectable work to the engine. */
+export function toWorkspaceAttempt(kind: WorkspaceKind, values: number[]): WorkspaceAttempt {
+  return kind === "array" ? { kind, rows: values } : { kind, groups: values };
+}
+
 /** Inspect equal-groups workspace state against a target. */
 export function inspectEqualGroups(groups: number[], target: EqualGroupsTarget): Inspection {
   const observedGroups = groups.length;
@@ -25,14 +34,11 @@ export function inspectEqualGroups(groups: number[], target: EqualGroupsTarget):
 
   let status: WorkspaceStatus;
   if (total === 0) {
-    status = 'incorrect';
-  } else if (
-    observedGroups === target.groups &&
-    groups.every((g) => g === target.perGroup)
-  ) {
-    status = 'correct';
+    status = "incorrect";
+  } else if (observedGroups === target.groups && groups.every((g) => g === target.perGroup)) {
+    status = "correct";
   } else {
-    status = 'partial';
+    status = "partial";
   }
 
   return { status, observedGroups, total, expectedTotal, correctGroups, target };
@@ -41,9 +47,9 @@ export function inspectEqualGroups(groups: number[], target: EqualGroupsTarget):
 /** A tutor-facing sentence that refers to what is visible in the workspace. */
 export function describeWorkspace(ins: Inspection): string {
   const { observedGroups, target, total, expectedTotal } = ins;
-  const g = (n: number) => `${n} group${n === 1 ? '' : 's'}`;
+  const g = (n: number) => `${n} group${n === 1 ? "" : "s"}`;
 
-  if (ins.status === 'correct') {
+  if (ins.status === "correct") {
     return `I can see ${g(observedGroups)} of ${target.perGroup} — that makes ${total}. Spot on!`;
   }
   if (observedGroups === 0 || total === 0) {

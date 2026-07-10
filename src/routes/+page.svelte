@@ -23,8 +23,8 @@
 <!-- Top bar -->
 <header class="mx-auto flex max-w-6xl items-center justify-between px-5 py-5">
   <Logo />
-  <a href="#apply">
-    <Button size="md">Apply to the pilot</Button>
+  <a class="inline-flex h-11 items-center rounded-full bg-green px-5 font-display text-[0.95rem] font-semibold text-paper-3 shadow-[0_8px_20px_rgba(47,158,111,0.28)] transition hover:bg-green-deep focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-green/50 focus-visible:ring-offset-3" href="#apply">
+    Apply to the pilot
   </a>
 </header>
 
@@ -47,8 +47,8 @@
         shine.
       </p>
       <div class="mt-7 flex flex-wrap gap-3">
-        <a href="#apply"><Button size="lg">Apply to the pilot</Button></a>
-        <a href="#how"><Button size="lg" variant="ghost">See how it works</Button></a>
+        <a class="inline-flex h-13 items-center rounded-full bg-green px-7 font-display font-semibold text-paper-3 shadow-[0_8px_20px_rgba(47,158,111,0.28)] transition hover:bg-green-deep focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-green/50 focus-visible:ring-offset-3" href="#apply">Apply to the pilot</a>
+        <a class="inline-flex h-13 items-center rounded-full px-7 font-display font-semibold text-ink transition hover:bg-cream focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-green/50" href="#how">See how it works</a>
       </div>
       <p class="mt-4 text-sm text-muted">For parents of 7-10-year-olds · maths reasoning first.</p>
     </div>
@@ -159,19 +159,19 @@
         <form {...submitApplication} class="grid gap-5">
           <div class="grid gap-5 sm:grid-cols-2">
             <Field label="Your name" required>
-              <input class="ss-input" name="parentName" placeholder="Parent / guardian name" />
+              <input class="ss-input" name="parentName" placeholder="Parent / guardian name" autocomplete="name" required />
             </Field>
             <Field label="Email" required>
-              <input class="ss-input" type="email" name="email" placeholder="you@example.com" />
+              <input class="ss-input" type="email" name="email" placeholder="you@example.com" autocomplete="email" required />
             </Field>
           </div>
 
           <div class="grid gap-5 sm:grid-cols-2">
             <Field label="Child's age" required>
-              <input class="ss-input" type="number" name="childAge" min="4" max="16" placeholder="8" />
+              <input class="ss-input" type="number" name="childAge" min="7" max="10" placeholder="8" inputmode="numeric" required />
             </Field>
             <Field label="Sessions a week you can realistically do" required>
-              <select class="ss-select" name="weeklyAvailability">
+              <select class="ss-select" name="weeklyAvailability" required>
                 <option value="">Choose…</option>
                 <option>1 session</option>
                 <option>2 sessions</option>
@@ -186,6 +186,7 @@
               class="ss-textarea"
               name="mathsExperience"
               placeholder="Where they're confident, where they struggle…"
+              required
             ></textarea>
           </Field>
 
@@ -194,6 +195,7 @@
               class="ss-textarea"
               name="triedBefore"
               placeholder="Apps, tutors, worksheets, helping yourself…"
+              required
             ></textarea>
           </Field>
 
@@ -202,6 +204,7 @@
               class="ss-textarea"
               name="wantToUnderstand"
               placeholder="The thing you wish you knew…"
+              required
             ></textarea>
           </Field>
 
@@ -211,10 +214,11 @@
                 class="ss-input"
                 name="interviewAvailability"
                 placeholder="e.g. weekday evenings"
+                required
               />
             </Field>
             <Field label="Willingness to pay (pilot)" required hint="Honest answer helps us — no commitment yet.">
-              <select class="ss-select" name="willingnessToPay">
+              <select class="ss-select" name="willingnessToPay" required>
                 <option value="">Choose…</option>
                 <option>Free pilot only</option>
                 <option>£29/month founding family</option>
@@ -229,7 +233,7 @@
           </Field>
 
           {#if errorMsg}
-            <p class="rounded-lg bg-coral/15 px-4 py-3 text-sm font-semibold text-coral">{errorMsg}</p>
+            <p class="rounded-lg bg-coral-soft px-4 py-3 text-sm font-semibold text-coral-deep" role="alert">{errorMsg}</p>
           {/if}
 
           <Button type="submit" size="lg" class="w-full">Send my application</Button>

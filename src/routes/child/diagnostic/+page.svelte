@@ -2,6 +2,8 @@
   import { onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import Button from '$lib/components/Button.svelte';
+  import SessionControls from '$lib/components/SessionControls.svelte';
+  import TutorPanel from '$lib/components/TutorPanel.svelte';
   import WorkspaceArray from '$lib/components/WorkspaceArray.svelte';
   import Workspace from '$lib/components/Workspace.svelte';
   import { getChildId } from '$lib/identity';
@@ -14,7 +16,7 @@
     diagnosticRequestHint,
     diagnosticRecordAttempt
   } from '$lib/remote/diagnostic.remote';
-  import { Volume2, VolumeX, Lightbulb, Check } from '@lucide/svelte';
+  import { Check, Lightbulb, Mic, Sparkles } from '@lucide/svelte';
 
   let childId = $state<string | null>(null);
   let sessionId = $state<string | null>(null);
@@ -22,12 +24,12 @@
   let started = $state(false);
   let connecting = $state(false);
   let currentHint = $state('');
-  let typed = $state('');
+  let typed = $state<number | null>(null);
   let closing = $state<string | null>(null);
-  let skills = $state<{ skillTag: string; level: string; phrase: string }[]>([]);
+  let lastVerdict = $state<string | null>(null);
   let finishing = $state(false);
 
-  const realtime = new RealtimeSession(async (name, args) => {
+  const realtime = new RealtimeSession(async (name) => {
     if (!sessionId) return { ok: false, reason: 'no session' };
     switch (name) {
       case 'request_hint': {
@@ -67,27 +69,25 @@
     }
   }
 
-  // Submit a diagnostic attempt. The server grades deterministically, writes the
-  // initial skillState, and auto-advances to the next item (or ends with feedback).
   async function submitAttempt(attempt: unknown) {
     if (!sessionId) return;
     currentHint = '';
     const r = await diagnosticRecordAttempt({ sessionId, attempt });
+    lastVerdict = r.verdict ?? null;
     diag = r.next ? { ...diag, item: r.next, itemIndex: r.next.index } : diag;
 
     if (r.done) {
       closing = r.closing ?? 'All done — well done for having a go!';
-      if (r.views) skills = r.views;
-      realtime.pushVerdict(`The diagnostic is finished. Say this warmly to the child: "${closing}"`);
+      realtime.pushVerdict(`The quick check is finished. Say this warmly to the child: "${closing}"`);
       return;
     }
     if (r.next) {
+      lastVerdict = null;
       realtime.pushVerdict(
         `The child is moving on. Next prompt to work through: "${r.next.prompt}". Keep it encouraging.`
       );
       return;
     }
-    // wrong, try again — feed the coaching instruction
     const parts = [
       `The child answered. Verdict: "${r.verdict}".`,
       r.misconception ? `Likely misconception: ${r.misconception}.` : '',
@@ -100,14 +100,22 @@
   function handleArrayCheck(rows: number[]) {
     submitAttempt({ kind: 'array', rows });
   }
-  function handleGroupsCheck(_r: unknown, groups: number[]) {
+
+  function handleGroupsCheck(_result: unknown, groups: number[]) {
     submitAttempt({ kind: 'equal_groups', groups });
   }
+
+  function streamWorkspace(kind: 'array' | 'equal_groups', action: string, values: number[]) {
+    realtime.pushContext(
+      `WORKSPACE UPDATE (do not respond yet): the child used ${action} in the ${kind} workspace. Current counts: [${values.join(', ')}].`
+    );
+  }
+
   function submitNumeric() {
-    const n = parseInt(typed, 10);
-    typed = '';
-    if (Number.isNaN(n)) return;
-    submitAttempt({ kind: 'numeric', value: n });
+    if (typed === null || !Number.isFinite(typed)) return;
+    const value = typed;
+    typed = null;
+    submitAttempt({ kind: 'numeric', value });
   }
 
   async function askForHelp() {
@@ -117,124 +125,190 @@
     if (r.coachInstruction) realtime.pushVerdict(`The child is stuck. Coaching: ${r.coachInstruction}`);
   }
 
-  async function finish() {
+  async function repeatTutor() {
+    if (sessionId && childId) await recordEvent({ sessionId, childId, type: 'repeat' });
+    realtime.pushVerdict('The child tapped “Say that again”. Repeat your last instruction more slowly and in fewer words.');
+  }
+
+  async function retryConnection() {
+    if (!sessionId || connecting) return;
+    connecting = true;
+    try {
+      await realtime.connect(() => diagnosticToken(sessionId!));
+    } finally {
+      connecting = false;
+    }
+  }
+
+  async function leave(destination: '/dashboard' | '/child/lesson') {
     if (finishing) return;
     finishing = true;
-    if (sessionId && diag?.status !== 'ended') {
-      try { await recordEvent({ sessionId, childId: childId!, type: 'session_end' }); } catch {}
+    if (sessionId && diag?.status !== 'ended' && !closing) {
+      try {
+        await recordEvent({ sessionId, childId: childId!, type: 'session_end' });
+      } catch {
+        // The session still closes locally if event recording is unavailable.
+      }
     }
     realtime.shutdown();
-    // go to the lesson proper, or dashboard if no arrays plan
-    await goto('/child/lesson');
+    await goto(destination);
   }
 
   const item = $derived(diag?.item ?? null);
-  const lastTutor = $derived(realtime.captions.filter((c) => c.role === 'tutor').at(-1)?.text ?? '');
+  const lastTutor = $derived(realtime.captions.filter((c) => c.role === 'tutor').at(-1)?.text ?? 'Say hello when you are ready.');
   const statusLabel = $derived(
-    realtime.state === 'connecting' ? 'Connecting…' :
-    realtime.speaking ? 'Willow is talking' :
-    realtime.state === 'live' ? 'Listening…' :
-    closing ? 'All done' : ''
+    realtime.state === 'connecting' ? 'Getting ready' :
+    realtime.speaking ? 'Talking' :
+    realtime.state === 'live' ? realtime.muted ? 'Mic is off' : 'Listening' :
+    realtime.state === 'error' ? 'Needs help connecting' : 'Ready'
   );
+  const progress = $derived(diag?.total ? Math.min(100, (((item?.index ?? 0) + 1) / diag.total) * 100) : 0);
 
   onDestroy(() => realtime.shutdown());
 </script>
 
-<svelte:head><title>Quick check · Sprout Shine</title></svelte:head>
+<svelte:head><title>Quick maths check · Sprout Shine</title></svelte:head>
 
-<div class="min-h-screen bg-green">
-  <div class="mx-auto flex min-h-screen max-w-2xl flex-col px-5 py-6 text-paper-3">
-    <div class="flex items-center justify-between">
-      <span class="text-xs font-bold uppercase tracking-widest text-paper-3/70">Child · Quick check</span>
-      {#if diag && !closing}<span class="rounded-full bg-white/15 px-3 py-1 text-xs font-semibold">{(item?.index ?? 0) + 1} of {diag.total}</span>{/if}
-    </div>
+<div class="child-session-page">
+  <div class="mx-auto flex min-h-[100svh] max-w-3xl flex-col px-4 py-5 sm:px-6 sm:py-7">
+    <header class="flex items-center justify-between gap-4">
+      <div class="inline-flex items-center gap-2 font-display font-bold text-ink">
+        <span aria-hidden="true">🌿</span>
+        <span>Sprout Shine</span>
+      </div>
+      {#if diag && !closing}
+        <div class="flex items-center gap-2">
+          <div class="hidden h-2 w-24 overflow-hidden rounded-full bg-cream sm:block" aria-hidden="true">
+            <div class="h-full rounded-full bg-green" style={`width: ${progress}%`}></div>
+          </div>
+          <span class="rounded-full bg-paper-3 px-3 py-1.5 text-xs font-extrabold text-green-deep shadow-sm">
+            {(item?.index ?? 0) + 1} of {diag.total}
+          </span>
+        </div>
+      {/if}
+    </header>
 
     {#if !started}
-      <div class="flex flex-1 flex-col items-center justify-center text-center">
-        <div class="grid size-20 place-items-center rounded-full bg-paper-3 text-5xl">🌿</div>
-        <h1 class="mt-5 font-display text-2xl font-bold sm:text-3xl">A friendly quick check</h1>
-        <p class="mt-2 max-w-sm text-paper-3/80">
-          This isn't a test. Willow just wants to see how your maths brain works so future lessons fit you. About 5 minutes, talking out loud.
-        </p>
-        <Button class="mt-6" size="lg" variant="soft" onclick={begin} disabled={connecting}>
-          {connecting ? 'Starting…' : "Let's begin 🎤"}
-        </Button>
-      </div>
+      <main class="grid flex-1 place-items-center py-10">
+        <section class="child-session-card w-full max-w-xl p-6 text-center sm:p-10">
+          <div class="mx-auto grid size-20 place-items-center rounded-full bg-mint text-5xl ring-8 ring-mint/60">🌿</div>
+          <p class="mt-6 text-xs font-extrabold uppercase tracking-[0.18em] text-green-deep">Meet Willow · 2 of 2</p>
+          <h1 class="mt-2 font-display text-3xl font-bold leading-tight text-ink sm:text-4xl">First, a friendly maths check</h1>
+          <p class="mx-auto mt-3 max-w-md text-base leading-relaxed text-muted sm:text-lg">
+            This is not a test. A few little questions help Willow choose a good place to start.
+          </p>
+          <div class="mx-auto mt-6 flex max-w-sm items-center justify-center gap-2 rounded-xl bg-paper-2 px-4 py-3 text-sm font-bold text-ink-soft">
+            <Mic class="size-5 text-green" /> Talk out loud, type, or use the workbook
+          </div>
+          <Button class="mt-7 w-full sm:w-auto" size="lg" onclick={begin} disabled={connecting}>
+            <Mic class="size-5" /> {connecting ? 'Getting Willow ready…' : 'Start the quick check'}
+          </Button>
+          <p class="mt-3 text-xs text-muted">Your browser will ask to use the microphone.</p>
+        </section>
+      </main>
     {:else if closing}
-      <div class="flex flex-1 flex-col items-center justify-center text-center">
-        <div class="grid size-20 place-items-center rounded-full bg-gold text-5xl">⭐</div>
-        <h1 class="mt-5 font-display text-2xl font-bold sm:text-3xl">That's the quick check done!</h1>
-        <p class="mt-3 max-w-md rounded-2xl bg-white/12 p-5 font-hand text-xl leading-snug">{closing}</p>
-        {#if skills.length}
-          <div class="mt-4 w-full max-w-md space-y-1.5 text-left">
-            {#each skills as s}
-              <div class="flex items-center justify-between rounded-xl bg-white/8 px-4 py-2 text-sm">
-                <span class="font-semibold capitalize">{s.skillTag.replace(/_/g, ' ')}</span>
-                <span class="text-paper-3/80">{s.phrase}</span>
-              </div>
-            {/each}
-            <p class="pt-1 text-center text-xs text-paper-3/60">Learning signals from today — not labels. You can always correct anything later.</p>
-          </div>
-        {/if}
-        <Button class="mt-6" size="lg" variant="soft" onclick={finish}>Start my first lesson</Button>
-      </div>
+      <main class="grid flex-1 place-items-center py-10">
+        <section class="child-session-card w-full max-w-xl p-6 text-center sm:p-10">
+          <div class="mx-auto grid size-20 place-items-center rounded-full bg-gold/25 text-5xl ring-8 ring-gold/10">⭐</div>
+          <p class="mt-6 text-xs font-extrabold uppercase tracking-[0.18em] text-green-deep">Quick check complete</p>
+          <h1 class="mt-2 font-display text-3xl font-bold text-ink sm:text-4xl">You did it!</h1>
+          <p class="mx-auto mt-4 max-w-md rounded-2xl bg-mint p-5 font-display text-xl font-medium leading-snug text-ink">
+            {closing}
+          </p>
+          <p class="mx-auto mt-4 max-w-sm text-sm text-muted">Willow now has a starting point. It will keep changing as you learn.</p>
+          <Button class="mt-7 w-full sm:w-auto" size="lg" onclick={() => leave('/child/lesson')}>
+            <Sparkles class="size-5" /> Go to my first lesson
+          </Button>
+        </section>
+      </main>
     {:else}
-      <div class="mt-6 flex items-center gap-3">
-        <div class="grid size-12 place-items-center rounded-full bg-paper-3 text-2xl">🌿</div>
-        <div class="flex items-center gap-2">
-          <span class="size-2.5 rounded-full {realtime.speaking ? 'animate-pulse bg-paper-3' : realtime.state === 'live' ? 'animate-ping bg-gold' : 'bg-paper-3/40'}"></span>
-          <span class="text-sm font-bold uppercase tracking-wide text-paper-3/90">{statusLabel}</span>
-        </div>
-      </div>
+      <main class="mt-5 flex flex-1 flex-col">
+        <TutorPanel
+          text={lastTutor}
+          status={statusLabel}
+          speaking={realtime.speaking}
+          error={realtime.error}
+          onRetry={retryConnection}
+        />
 
-      {#if realtime.error}
-        <p class="mt-4 rounded-lg bg-coral/30 px-3 py-2 text-sm">Couldn't connect: {realtime.error}</p>
-      {/if}
+        {#if currentHint}
+          <section class="mt-3 flex items-start gap-3 rounded-2xl border border-gold/40 bg-gold/15 p-4" aria-live="polite">
+            <div class="grid size-9 shrink-0 place-items-center rounded-full bg-gold text-gold-deep">
+              <Lightbulb class="size-5" />
+            </div>
+            <div>
+              <div class="text-xs font-extrabold uppercase tracking-wider text-gold-deep">A small hint</div>
+              <p class="mt-1 font-semibold text-ink">{currentHint}</p>
+            </div>
+          </section>
+        {/if}
 
-      <div class="mt-4 rounded-2xl bg-white/12 p-5">
-        <p class="font-hand text-2xl leading-snug">{lastTutor || 'Say hello to Willow!'}</p>
-      </div>
+        {#if item}
+          <section class="child-session-card mt-4 p-4 sm:p-6" aria-labelledby="diagnostic-task">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div class="text-xs font-extrabold uppercase tracking-[0.15em] text-green-deep">{item.label}</div>
+                <h1 id="diagnostic-task" class="mt-2 max-w-2xl font-display text-2xl font-bold leading-tight text-ink sm:text-3xl">
+                  {item.prompt}
+                </h1>
+              </div>
+              {#if lastVerdict && lastVerdict !== 'correct'}
+                <span class="rounded-full bg-coral-soft px-3 py-1.5 text-sm font-bold text-coral-deep" role="status">
+                  Have another look
+                </span>
+              {/if}
+            </div>
+            <div class="mt-4">
+              {#if item.answerType === 'manipulative' && item.manipulative?.kind === 'array'}
+                <WorkspaceArray
+                  target={item.manipulative}
+                  onInteract={(action, rows) => streamWorkspace('array', action, rows)}
+                  onCheck={handleArrayCheck}
+                />
+              {:else if item.answerType === 'manipulative' && item.manipulative?.kind === 'equal_groups'}
+                <Workspace
+                  target={item.manipulative}
+                  onInteract={(action, groups) => streamWorkspace('equal_groups', action, groups)}
+                  onCheck={handleGroupsCheck}
+                />
+              {:else if item.answerType === 'numeric'}
+                <form onsubmit={(event) => { event.preventDefault(); submitNumeric(); }} class="flex max-w-sm items-center gap-2">
+                  <label for="number-answer" class="sr-only">Type your number answer</label>
+                  <input
+                    id="number-answer"
+                    bind:value={typed}
+                    type="number"
+                    inputmode="numeric"
+                    placeholder="Your answer"
+                    class="ss-input min-h-12 flex-1 bg-paper"
+                  />
+                  <button
+                    type="submit"
+                    class="grid size-12 place-items-center rounded-full bg-green text-paper-3 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-green/50 focus-visible:ring-offset-3"
+                    aria-label="Check my answer"
+                    disabled={typed === null}
+                  ><Check class="size-5" /></button>
+                </form>
+              {:else}
+                <div class="rounded-xl bg-paper-2 p-4 text-sm font-semibold text-ink-soft">
+                  Tell Willow out loud, or choose “Type instead” below.
+                </div>
+              {/if}
+            </div>
+          </section>
+        {/if}
 
-      {#if currentHint}
-        <div class="mt-3 flex items-start gap-2 rounded-2xl bg-gold/20 p-4">
-          <Lightbulb class="mt-0.5 size-5 shrink-0 text-gold" />
-          <p class="text-sm">{currentHint}</p>
-        </div>
-      {/if}
-
-      {#if item}
-        <div class="mt-4 rounded-2xl border border-white/20 bg-white/5 p-5">
-          <div class="text-xs font-bold uppercase tracking-widest text-paper-3/60">{item.label}</div>
-          <p class="mt-2 font-display text-xl font-bold">{item.prompt}</p>
-          <div class="mt-3">
-            {#if item.answerType === 'manipulative' && item.manipulative?.kind === 'array'}
-              <WorkspaceArray target={item.manipulative} onCheck={handleArrayCheck} />
-            {:else if item.answerType === 'manipulative' && item.manipulative?.kind === 'equal_groups'}
-              <Workspace target={item.manipulative} onCheck={handleGroupsCheck} />
-            {:else if item.answerType === 'numeric'}
-              <form onsubmit={(e) => { e.preventDefault(); submitNumeric(); }} class="flex items-center gap-2">
-                <input bind:value={typed} type="number" inputmode="numeric" placeholder="Type your answer…"
-                  class="flex-1 rounded-full border border-white/20 bg-white/10 px-4 py-2.5 text-paper-3 placeholder:text-paper-3/50 focus:outline-none focus:ring-2 focus:ring-paper-3/40" />
-                <button type="submit" class="grid size-11 place-items-center rounded-full bg-paper-3 text-green" aria-label="Check"><Check class="size-5" /></button>
-              </form>
-            {:else}
-              <p class="text-sm text-paper-3/70">Tell Willow your answer out loud.</p>
-            {/if}
-          </div>
-        </div>
-      {/if}
-
-      <div class="flex-1"></div>
-
-      <div class="mt-4 flex flex-wrap items-center gap-2">
-        <button onclick={askForHelp} class="inline-flex items-center gap-1.5 rounded-full bg-gold px-3 py-2 text-sm font-bold text-gold-deep hover:bg-gold/90">
-          <Lightbulb class="size-4" /> I'm stuck
-        </button>
-        <button onclick={() => realtime.toggleMute()} class="inline-flex items-center gap-1.5 rounded-full bg-white/12 px-3 py-2 text-sm font-semibold hover:bg-white/20">
-          {#if realtime.muted}<VolumeX class="size-4" /> Unmute{:else}<Volume2 class="size-4" /> Mute{/if}
-        </button>
-        <button onclick={finish} class="ml-auto text-sm font-semibold text-paper-3/70 hover:text-paper-3">I'm done</button>
-      </div>
+        <div class="flex-1"></div>
+        <SessionControls
+          muted={realtime.muted}
+          disabled={realtime.state !== 'live'}
+          onHelp={askForHelp}
+          onRepeat={repeatTutor}
+          onMute={() => realtime.toggleMute()}
+          onFinish={() => leave('/dashboard')}
+          onSendText={(text) => realtime.sendText(text)}
+        />
+      </main>
     {/if}
   </div>
 </div>

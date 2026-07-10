@@ -39,6 +39,14 @@
     busy = true;
     try {
       if (step === 0) {
+        if (!guardian.name.trim()) {
+          error = 'Please enter your name.';
+          return;
+        }
+        if (!guardian.email.includes('@')) {
+          error = 'Please enter an email address with an @ symbol.';
+          return;
+        }
         if (!guardian.confirmed) {
           error = 'Please confirm you are the parent or guardian.';
           return;
@@ -47,8 +55,8 @@
         step = 1;
       } else if (step === 1) {
         const age = Number(profile.age);
-        if (!profile.nickname.trim() || !Number.isFinite(age) || age < 4 || age > 16) {
-          error = 'A nickname and an age between 4 and 16 are needed.';
+        if (!profile.nickname.trim() || !Number.isFinite(age) || age < 7 || age > 10) {
+          error = 'Please add a nickname and an age between 7 and 10.';
           return;
         }
         if (!profile.mathsConfidence) {
@@ -106,11 +114,11 @@
         enough.
       </p>
       <div class="mt-6 grid gap-5">
-        <Field label="Your name">
-          <input class="ss-input" bind:value={guardian.name} placeholder="Parent / guardian name" />
+        <Field label="Your name" required>
+          <input class="ss-input" bind:value={guardian.name} placeholder="Parent or guardian name" autocomplete="name" />
         </Field>
-        <Field label="Email" hint="Where we send the weekly digest.">
-          <input class="ss-input" type="email" bind:value={guardian.email} placeholder="you@example.com" />
+        <Field label="Email" required hint="Where we send the weekly digest.">
+          <input class="ss-input" type="email" bind:value={guardian.email} placeholder="you@example.com" autocomplete="email" />
         </Field>
         <label class="flex items-start gap-3 rounded-xl border border-cream-line bg-paper p-4">
           <input type="checkbox" class="mt-1 size-5 accent-[#2f9e6f]" bind:checked={guardian.confirmed} />
@@ -128,7 +136,7 @@
             <input class="ss-input" bind:value={profile.nickname} placeholder="e.g. Maya" />
           </Field>
           <Field label="Age" required>
-            <input class="ss-input" type="number" min="4" max="16" bind:value={profile.age} placeholder="8" />
+            <input class="ss-input" type="number" min="7" max="10" bind:value={profile.age} placeholder="8" inputmode="numeric" />
           </Field>
         </div>
         <div class="grid gap-5 sm:grid-cols-2">
@@ -171,25 +179,25 @@
       </p>
       <div class="mt-6 grid gap-5">
         <Field label="What does your child find easy?">
-          <textarea class="ss-textarea" bind:value={interview.findsEasy}></textarea>
+          <textarea class="ss-textarea" bind:value={interview.findsEasy} placeholder="For example: mental maths, patterns, explaining ideas…"></textarea>
         </Field>
         <Field label="What do they tend to avoid?">
-          <textarea class="ss-textarea" bind:value={interview.avoids}></textarea>
+          <textarea class="ss-textarea" bind:value={interview.avoids} placeholder="For example: word problems, written working, timed questions…"></textarea>
         </Field>
         <Field label="What happens when they get stuck?">
-          <textarea class="ss-textarea" bind:value={interview.whenStuck}></textarea>
+          <textarea class="ss-textarea" bind:value={interview.whenStuck} placeholder="What do you notice, and what usually helps?"></textarea>
         </Field>
         <Field label="What have you already tried?">
-          <textarea class="ss-textarea" bind:value={interview.triedBefore}></textarea>
+          <textarea class="ss-textarea" bind:value={interview.triedBefore} placeholder="Apps, worksheets, tutors, practising together…"></textarea>
         </Field>
         <Field label="What do you most want to understand?">
-          <textarea class="ss-textarea" bind:value={interview.wantToUnderstand}></textarea>
+          <textarea class="ss-textarea" bind:value={interview.wantToUnderstand} placeholder="The question you hope Sprout Shine can answer over time…"></textarea>
         </Field>
       </div>
     {/if}
 
     {#if error}
-      <p class="mt-5 rounded-lg bg-coral/15 px-4 py-3 text-sm font-semibold text-coral">{error}</p>
+      <p class="mt-5 rounded-lg bg-coral-soft px-4 py-3 text-sm font-semibold text-coral-deep" role="alert">{error}</p>
     {/if}
 
     <div class="mt-7 flex items-center justify-between">

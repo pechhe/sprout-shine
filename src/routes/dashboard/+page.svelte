@@ -11,9 +11,14 @@
   import { updatePrivacy, requestDeletion } from '$lib/remote/consent.remote';
 
   const coachMap: Record<string, { emoji: string; name: string; role: string }> = {
-    willow: { emoji: '🌿', name: 'Willow', role: 'Calm coach' },
-    pip: { emoji: '🧩', name: 'Pip', role: 'Puzzle guide' },
-    bolt: { emoji: '⚡', name: 'Bolt', role: 'Challenge coach' }
+    willow: { emoji: '🌿', name: 'Willow', role: 'Calm and steady' },
+    pip: { emoji: '🧩', name: 'Willow', role: 'Puzzle mode' },
+    bolt: { emoji: '⚡', name: 'Willow', role: 'Challenge mode' }
+  };
+  const confidenceMap: Record<string, string> = {
+    shaky: 'confidence still growing',
+    mixed: 'a mix of easy and tricky bits',
+    confident: 'feeling fairly confident'
   };
 
   let loading = $state(true);
@@ -93,7 +98,7 @@
           <div>
             <h1 class="font-display text-2xl font-bold text-ink">{child.nickname}</h1>
             <p class="text-sm text-muted">
-              Age {child.age}{child.schoolYear ? ` · ${child.schoolYear}` : ''} · maths {child.mathsConfidence}
+              Age {child.age}{child.schoolYear ? ` · ${child.schoolYear}` : ''} · {confidenceMap[child.mathsConfidence] ?? 'maths learner'}
             </p>
           </div>
         </div>
@@ -107,8 +112,13 @@
 
       <div class="mt-5 flex flex-wrap gap-3">
         {#if child.onboardedAt}
-          <Button variant="primary" onclick={() => goto('/child/lesson')}>Start a session</Button>
-          <Button variant="ghost" onclick={resetCoach}>Change coach</Button>
+          <Button
+            variant="primary"
+            onclick={() => goto(dash?.diagnosticComplete ? '/child/lesson' : '/child/diagnostic')}
+          >
+            {dash?.diagnosticComplete ? 'Start a session' : 'Finish the quick check'}
+          </Button>
+          <Button variant="ghost" onclick={resetCoach}>Change learning style</Button>
         {:else}
           <Button onclick={() => goto('/child/onboarding')}>Finish child onboarding →</Button>
         {/if}
@@ -134,7 +144,6 @@
       <div class="mt-4 grid gap-3">
         <Toggle bind:checked={settings.saveAudio} label="Save voice recordings" description="Kept 30 days then deleted." />
         <Toggle bind:checked={settings.weeklyDigest} label="Weekly progress email" />
-        <Toggle bind:checked={settings.shareWithSchool} label="Share progress with school" />
         <Toggle bind:checked={settings.fullTranscriptAccess} label="Full transcript access" />
         <Toggle bind:checked={settings.productImprovement} label="Help improve Sprout Shine" />
       </div>

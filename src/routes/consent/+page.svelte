@@ -83,11 +83,6 @@
         description="A short evidence-based learning digest, Sundays."
       />
       <Toggle
-        bind:checked={settings.shareWithSchool}
-        label="Share progress with school"
-        description="Off until you connect a teacher."
-      />
-      <Toggle
         bind:checked={settings.fullTranscriptAccess}
         label="Full transcript access"
         description="Off by default. The digest is evidence, not every word said."
@@ -102,12 +97,12 @@
     <label class="mt-5 flex items-start gap-3 rounded-xl border border-cream-line bg-paper p-4">
       <input type="checkbox" class="mt-1 size-5 accent-[#2f9e6f]" bind:checked={consented} />
       <span class="text-sm text-ink-soft">
-        I'm {nickname}'s parent or guardian and I consent to her using Sprout Shine under these settings.
+        I'm {nickname}'s parent or guardian and I consent to them using Sprout Shine under these settings.
       </span>
     </label>
 
     {#if error}
-      <p class="mt-4 rounded-lg bg-coral/15 px-4 py-3 text-sm font-semibold text-coral">{error}</p>
+      <p class="mt-4 rounded-lg bg-coral-soft px-4 py-3 text-sm font-semibold text-coral-deep" role="alert">{error}</p>
     {/if}
 
     <Button class="mt-6 w-full" size="lg" onclick={submit} disabled={busy}>
