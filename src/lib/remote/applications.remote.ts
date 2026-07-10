@@ -1,27 +1,27 @@
-import { form, query } from '$app/server';
-import { convex } from '$lib/server/convex';
-import { api } from '$convex/_generated/api';
+import { form, query } from "$app/server";
+import { convex } from "$lib/server/convex";
+import { api } from "$convex/_generated/api";
 
 // #1 — founder-pilot application form.
-export const submitApplication = form('unchecked', async (data: Record<string, string>) => {
+export const submitApplication = form("unchecked", async (data: Record<string, string>) => {
   const required = [
-    'parentName',
-    'email',
-    'childAge',
-    'mathsExperience',
-    'triedBefore',
-    'wantToUnderstand',
-    'weeklyAvailability',
-    'interviewAvailability',
-    'willingnessToPay'
+    "parentName",
+    "email",
+    "childAge",
+    "mathsExperience",
+    "triedBefore",
+    "wantToUnderstand",
+    "weeklyAvailability",
+    "interviewAvailability",
+    "willingnessToPay",
   ];
   const missing = required.filter((k) => !data[k]?.trim());
   if (missing.length) {
-    return { ok: false as const, error: `Please fill in: ${missing.join(', ')}` };
+    return { ok: false as const, error: `Please fill in: ${missing.join(", ")}` };
   }
   const age = Number(data.childAge);
-  if (!Number.isFinite(age) || age < 4 || age > 16) {
-    return { ok: false as const, error: 'Please enter a child age between 4 and 16.' };
+  if (!Number.isFinite(age) || age < 7 || age > 10) {
+    return { ok: false as const, error: "Please enter a child age between 7 and 10." };
   }
 
   await convex.mutation(api.applications.submit, {
@@ -34,7 +34,7 @@ export const submitApplication = form('unchecked', async (data: Record<string, s
     weeklyAvailability: data.weeklyAvailability.trim(),
     interviewAvailability: data.interviewAvailability.trim(),
     willingnessToPay: data.willingnessToPay.trim(),
-    privacyConcerns: data.privacyConcerns?.trim() || undefined
+    privacyConcerns: data.privacyConcerns?.trim() || undefined,
   });
 
   return { ok: true as const };

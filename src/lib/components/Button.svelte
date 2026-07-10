@@ -15,7 +15,7 @@
   }: HTMLButtonAttributes & { variant?: Variant; size?: Size; children: Snippet } = $props();
 
   const base =
-    'inline-flex items-center justify-center gap-2 rounded-full font-display font-semibold transition active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green/40';
+    'ss-button inline-flex items-center justify-center gap-2 rounded-full font-display font-semibold disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-green focus-visible:ring-offset-3 focus-visible:ring-offset-paper-2';
   const variants: Record<Variant, string> = {
     primary: 'bg-green text-paper-3 hover:bg-green-deep shadow-[0_8px_20px_rgba(47,158,111,0.28)]',
     blue: 'bg-blue text-white hover:brightness-95 shadow-[0_8px_20px_rgba(58,134,214,0.28)]',
@@ -28,6 +28,6 @@
   };
 </script>
 
-<button class={cn(base, variants[variant], sizes[size], klass)} {...rest}>
+<button data-feedback="tap" class={cn(base, variants[variant], sizes[size], klass)} {...rest}>
   {@render children()}
 </button>
